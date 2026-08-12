@@ -72,7 +72,7 @@ Registry 远端对象提供完整 `.dockerconfigjson`，其中认证服务器必
 ## 5. 正常发布
 
 1. Source PR 通过格式化、Vet、单测、构建和 Kustomize Render。
-2. 合并 `main` 触发 `release-images-and-stage`；GitHub 托管 Runner 使用 Repository Secrets 中的固定凭证登录 ACR 个人版公网端点，BuildKit 推送三个带 SBOM/Provenance 的镜像。
+2. 合并 `main` 触发 `release-images-and-stage`；GitHub 托管 Runner 使用 Repository Secrets 中的固定凭证登录 ACR 个人版公网端点，BuildKit 推送三个带 SBOM/Provenance 的镜像。同一分支重复触发时只保留最新运行，旧的排队或执行中发布会被取消；镜像标签不可变，只有三个构建全部成功后才创建 GitOps PR。
 3. 工作流取得每个镜像 digest，把镜像名称转换为同实例的北京 VPC 端点并创建 Staging GitOps PR。审核并合并后 Argo CD 自动运行 Migration，再滚动 API/Worker。
 4. 验证 Staging Migration、Pod Ready、`/readyz`、Probe 结果、Incident Webhook、错误率和延迟。
 5. 从源码仓库 `main` 手工触发 `promote-production` 并输入 `PROMOTE`。工作流把 Staging 的完全相同 digest 复制到 Production 并创建 PR；至少由另一名负责人审阅，但 GitHub Free 私有仓库不会强制该审批。
