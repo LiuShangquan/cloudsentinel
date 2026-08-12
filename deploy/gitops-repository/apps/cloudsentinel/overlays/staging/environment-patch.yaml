@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloudsentinel-config
+data:
+  APP_ENV: staging
+  PROBE_ALLOW_PRIVATE_NETWORKS: "true"

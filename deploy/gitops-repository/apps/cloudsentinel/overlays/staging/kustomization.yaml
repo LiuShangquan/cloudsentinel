@@ -1,0 +1,19 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: cloudsentinel-staging
+resources:
+  - ../../base
+  - namespace.yaml
+  - ingress.yaml
+patches:
+  - path: environment-patch.yaml
+images:
+  - name: cloudsentinel-api
+    newName: registry.cn-hangzhou.aliyuncs.com/REPLACE_ORG/cloudsentinel-api
+    digest: sha256:REPLACE_API_DIGEST
+  - name: cloudsentinel-worker
+    newName: registry.cn-hangzhou.aliyuncs.com/REPLACE_ORG/cloudsentinel-worker
+    digest: sha256:REPLACE_WORKER_DIGEST
+  - name: cloudsentinel-migrate
+    newName: registry.cn-hangzhou.aliyuncs.com/REPLACE_ORG/cloudsentinel-migrate
+    digest: sha256:REPLACE_MIGRATE_DIGEST

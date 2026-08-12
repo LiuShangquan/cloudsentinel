@@ -1,0 +1,46 @@
+cluster:
+  name: cloudsentinel-k8s
+
+  control_plane_endpoint: "<NLB_PRIVATE_IP_OR_DNS>:6443"
+
+  vpc_cidr: "<VPC_CIDR>"
+  pod_cidr: "<POD_CIDR>"
+  service_cidr: "<SERVICE_CIDR>"
+
+  kubernetes_version: "<KUBERNETES_VERSION>"
+  containerd_version: "<CONTAINERD_VERSION>"
+  calico_version: "<CALICO_VERSION>"
+
+nodes:
+  control_plane:
+    - name: master-01
+      private_ip: "<MASTER_01_PRIVATE_IP>"
+
+    - name: master-02
+      private_ip: "<MASTER_02_PRIVATE_IP>"
+
+    - name: master-03
+      private_ip: "<MASTER_03_PRIVATE_IP>"
+
+  workers:
+    - name: worker-app-01
+      private_ip: "<WORKER_APP_01_PRIVATE_IP>"
+      role: app
+
+    - name: worker-app-02
+      private_ip: "<WORKER_APP_02_PRIVATE_IP>"
+      role: app
+
+    - name: worker-monitor
+      private_ip: "<WORKER_MONITOR_PRIVATE_IP>"
+      role: monitoring
+
+    - name: worker-data-01
+      private_ip: "<WORKER_DATA_01_PRIVATE_IP>"
+      role: data
+
+external_nodes:
+  - name: ops-storage
+    private_ip: "<OPS_STORAGE_PRIVATE_IP>"
+    join_kubernetes: false
+

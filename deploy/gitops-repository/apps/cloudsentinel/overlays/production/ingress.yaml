@@ -1,0 +1,25 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cloudsentinel-api
+  annotations:
+    cert-manager.io/cluster-issuer: cloudsentinel-public-issuer
+    nginx.ingress.kubernetes.io/proxy-body-size: 1m
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "5"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "30"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [cloudsentinel.REPLACE_DOMAIN]
+      secretName: cloudsentinel-production-tls
+  rules:
+    - host: cloudsentinel.REPLACE_DOMAIN
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: cloudsentinel-api
+                port:
+                  name: http

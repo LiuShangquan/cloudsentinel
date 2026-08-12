@@ -1,0 +1,63 @@
+name: promote-production
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudsentinel-production-promotion
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: production-approval
+    steps:
+      - name: Checkout source tools
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - name: Mint short-lived GitOps repository token
+        id: gitops-token
+        uses: actions/create-github-app-token@f8d387b68d61c58ab83c6c016672934102569859 # v3.0.0
+        with:
+          client-id: ${{ vars.GITOPS_APP_CLIENT_ID }}
+          private-key: ${{ secrets.GITOPS_APP_PRIVATE_KEY }}
+          owner: ${{ vars.GITOPS_OWNER }}
+          repositories: ${{ vars.GITOPS_REPOSITORY_NAME }}
+          permission-contents: write
+          permission-pull-requests: write
+      - name: Checkout GitOps repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          repository: ${{ vars.GITOPS_OWNER }}/${{ vars.GITOPS_REPOSITORY_NAME }}
+          token: ${{ steps.gitops-token.outputs.token }}
+          path: gitops
+          persist-credentials: true
+      - name: Copy tested staging digests and open production PR
+        env:
+          GH_TOKEN: ${{ steps.gitops-token.outputs.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/gitops-images.mjs \
+            --copy-from gitops/apps/cloudsentinel/overlays/staging/kustomization.yaml \
+            --file gitops/apps/cloudsentinel/overlays/production/kustomization.yaml
+          cd gitops
+          if git diff --quiet -- apps/cloudsentinel/overlays/production/kustomization.yaml; then
+            echo "Production already references the staging digests."
+            exit 0
+          fi
+          branch="promote/cloudsentinel-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          git switch -c "${branch}"
+          git config user.name cloudsentinel-release-bot
+          git config user.email cloudsentinel-release-bot@users.noreply.github.com
+          git add apps/cloudsentinel/overlays/production/kustomization.yaml
+          git commit -m "release(production): promote tested CloudSentinel images"
+          git push --set-upstream origin "${branch}"
+          gh pr create \
+            --repo '${{ vars.GITOPS_OWNER }}/${{ vars.GITOPS_REPOSITORY_NAME }}' \
+            --base main --head "${branch}" \
+            --title "release(production): promote tested CloudSentinel images" \
+            --body "Copies the exact immutable image digests currently declared for staging. Merge after change review, then manually synchronize cloudsentinel-production in Argo CD."

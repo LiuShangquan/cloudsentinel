@@ -1,0 +1,192 @@
+name: cloudsentinel
+
+services:
+  mysql:
+    image: mysql:8.4.5
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-cloudsentinel}
+      MYSQL_USER: ${MYSQL_USER:-cloudsentinel}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-development-mysql-password}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-development-root-password}
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$${MYSQL_ROOT_PASSWORD} --silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    volumes:
+      - mysql-data:/var/lib/mysql
+    restart: unless-stopped
+
+  redis:
+    image: redis:8.0.2-alpine
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:-development-redis-password}"]
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-development-redis-password}
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+
+  migrate:
+    image: migrate/migrate:v4.18.3
+    volumes:
+      - ./migrations:/migrations:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        migrate -path=/migrations
+        -database='mysql://${MYSQL_USER:-cloudsentinel}:${MYSQL_PASSWORD:-development-mysql-password}@tcp(mysql:3306)/${MYSQL_DATABASE:-cloudsentinel}'
+        up
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: "no"
+
+  cloudsentinel-api:
+    build:
+      context: .
+      target: runtime
+      args:
+        TARGET: api
+    environment:
+      APP_NAME: cloudsentinel-api
+      APP_ENV: ${APP_ENV:-development}
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: 8080
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-cloudsentinel}
+      MYSQL_USER: ${MYSQL_USER:-cloudsentinel}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-development-mysql-password}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-development-redis-password}
+      JWT_SECRET: ${JWT_SECRET:-development-jwt-secret-change-me}
+      JWT_ISSUER: ${JWT_ISSUER:-cloudsentinel-api}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-2h}
+      BOOTSTRAP_USER_USERNAME: ${BOOTSTRAP_USER_USERNAME:-admin}
+      BOOTSTRAP_USER_PASSWORD: ${BOOTSTRAP_USER_PASSWORD:-development-admin-password}
+      ALERTMANAGER_WEBHOOK_TOKEN: ${ALERTMANAGER_WEBHOOK_TOKEN:-development-webhook-token-change-me}
+    ports:
+      - "${SERVER_PORT:-8080}:8080"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  cloudsentinel-worker:
+    build:
+      context: .
+      target: runtime
+      args:
+        TARGET: worker
+    environment:
+      APP_NAME: cloudsentinel-worker
+      APP_ENV: ${APP_ENV:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-cloudsentinel}
+      MYSQL_USER: ${MYSQL_USER:-cloudsentinel}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-development-mysql-password}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-development-redis-password}
+      PROBE_SCHEDULER_INTERVAL: ${PROBE_SCHEDULER_INTERVAL:-5s}
+      PROBE_SCHEDULER_BATCH_SIZE: ${PROBE_SCHEDULER_BATCH_SIZE:-100}
+      PROBE_WORKER_COUNT: ${PROBE_WORKER_COUNT:-4}
+      PROBE_QUEUE_CAPACITY: ${PROBE_QUEUE_CAPACITY:-100}
+      PROBE_STREAM_KEY: ${PROBE_STREAM_KEY:-cloudsentinel:probe:executions}
+      PROBE_CONSUMER_GROUP: ${PROBE_CONSUMER_GROUP:-cloudsentinel-probe-workers}
+      PROBE_STREAM_READ_COUNT: ${PROBE_STREAM_READ_COUNT:-10}
+      PROBE_STREAM_BLOCK_TIMEOUT: ${PROBE_STREAM_BLOCK_TIMEOUT:-5s}
+      # Greater than the worst allowed probe plus retry budget (21m30s).
+      PROBE_MESSAGE_IDLE_TIMEOUT: ${PROBE_MESSAGE_IDLE_TIMEOUT:-30m}
+      PROBE_PENDING_SCAN_INTERVAL: ${PROBE_PENDING_SCAN_INTERVAL:-30s}
+      PROBE_SHUTDOWN_TIMEOUT: ${PROBE_SHUTDOWN_TIMEOUT:-30s}
+      PROBE_ALLOW_PRIVATE_NETWORKS: ${PROBE_ALLOW_PRIVATE_NETWORKS:-true}
+      PROBE_ALLOW_LOOPBACK: ${PROBE_ALLOW_LOOPBACK:-false}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v3.5.3
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+    volumes:
+      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/prometheus/rules:/etc/prometheus/rules:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    depends_on:
+      - cloudsentinel-api
+      - cloudsentinel-worker
+    restart: unless-stopped
+
+  alertmanager:
+    image: prom/alertmanager:v0.32.1
+    environment:
+      ALERTMANAGER_WEBHOOK_TOKEN: ${ALERTMANAGER_WEBHOOK_TOKEN:-development-webhook-token-change-me}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        sed "s|__WEBHOOK_TOKEN__|$${ALERTMANAGER_WEBHOOK_TOKEN}|g"
+        /etc/alertmanager/alertmanager.yml > /tmp/alertmanager.yml &&
+        /bin/alertmanager --config.file=/tmp/alertmanager.yml --storage.path=/alertmanager
+    volumes:
+      - ./deploy/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager-data:/alertmanager
+    ports:
+      - "9093:9093"
+    depends_on:
+      - cloudsentinel-api
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:13.0.1
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-development-grafana-password}
+      GF_PLUGINS_PREINSTALL_DISABLED: "true"
+    volumes:
+      - ./deploy/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./deploy/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./deploy/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+  mvp-http-target:
+    build:
+      context: .
+      target: runtime
+      args:
+        TARGET: demo-target
+    profiles: ["demo"]
+    restart: unless-stopped
+
+volumes:
+  mysql-data:
+  redis-data:
+  prometheus-data:
+  grafana-data:
+  alertmanager-data:

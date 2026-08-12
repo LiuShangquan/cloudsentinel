@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cloudsentinel-staging
+  labels:
+    app.kubernetes.io/part-of: cloudsentinel
+    environment.cloudsentinel.io/name: staging
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted

@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cloudsentinel-production
+  labels:
+    app.kubernetes.io/part-of: cloudsentinel
+    environment.cloudsentinel.io/name: production
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted

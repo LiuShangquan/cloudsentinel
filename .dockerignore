@@ -1,0 +1,15 @@
+.git
+.agent
+.env
+.env.*
+!.env.example
+.idea
+.vscode
+bin
+dist
+logs
+coverage.out
+.cache
+*.log
+*.exe
+*.test

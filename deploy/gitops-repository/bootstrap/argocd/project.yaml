@@ -1,0 +1,40 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: cloudsentinel
+  namespace: argocd
+spec:
+  description: CloudSentinel application delivery boundary
+  sourceRepos:
+    - https://github.com/REPLACE_ORG/cloudsentinel-gitops.git
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: cloudsentinel-staging
+    - server: https://kubernetes.default.svc
+      namespace: cloudsentinel-production
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+  namespaceResourceWhitelist:
+    - group: ""
+      kind: ConfigMap
+    - group: ""
+      kind: Service
+    - group: ""
+      kind: ServiceAccount
+    - group: apps
+      kind: Deployment
+    - group: batch
+      kind: Job
+    - group: networking.k8s.io
+      kind: Ingress
+    - group: networking.k8s.io
+      kind: NetworkPolicy
+    - group: policy
+      kind: PodDisruptionBudget
+    - group: autoscaling
+      kind: HorizontalPodAutoscaler
+    - group: external-secrets.io
+      kind: ExternalSecret
+  orphanedResources:
+    warn: true

@@ -1,0 +1,63 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  go:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Verify module and formatting
+        shell: bash
+        run: |
+          go mod verify
+          test -z "$(gofmt -l .)"
+      - name: Vet and test
+        run: |
+          go vet ./...
+          go test -count=1 ./...
+          node --test scripts/gitops-images.test.mjs
+      - name: Build processes
+        run: |
+          go build -trimpath -o /tmp/cloudsentinel-api ./cmd/api
+          go build -trimpath -o /tmp/cloudsentinel-worker ./cmd/worker
+
+  manifests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - name: Render and audit Kustomize overlays
+        shell: bash
+        run: |
+          set -euo pipefail
+          kubectl version --client
+          for environment in staging production; do
+            output="$(mktemp)"
+            kubectl kustomize "deploy/gitops-repository/apps/cloudsentinel/overlays/${environment}" >"${output}"
+            if grep -Eq '^kind: (Secret|StatefulSet)$' "${output}"; then
+              echo "forbidden Secret or StatefulSet in ${environment}" >&2
+              exit 1
+            fi
+            grep -q 'kind: Deployment' "${output}"
+            grep -q 'argocd.argoproj.io/hook: PreSync' "${output}"
+          done
+          kubectl kustomize deploy/gitops-repository/bootstrap/argocd >/dev/null

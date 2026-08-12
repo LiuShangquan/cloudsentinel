@@ -1,0 +1,25 @@
+{
+  "uid": "cloudsentinel-overview",
+  "title": "CloudSentinel Overview",
+  "schemaVersion": 41,
+  "version": 1,
+  "refresh": "5s",
+  "time": {"from": "now-1h", "to": "now"},
+  "panels": [
+    {"id":1,"type":"timeseries","title":"HTTP Request Rate","gridPos":{"x":0,"y":0,"w":6,"h":7},"targets":[{"expr":"sum(rate(cloudsentinel_http_requests_total[5m]))","refId":"A"}]},
+    {"id":2,"type":"timeseries","title":"HTTP 5xx","gridPos":{"x":6,"y":0,"w":6,"h":7},"targets":[{"expr":"sum(rate(cloudsentinel_http_requests_total{status=~\"5..\"}[5m]))","refId":"A"}]},
+    {"id":3,"type":"stat","title":"API P95","gridPos":{"x":12,"y":0,"w":6,"h":7},"targets":[{"expr":"histogram_quantile(0.95, sum by (le) (rate(cloudsentinel_http_request_duration_seconds_bucket[5m])))","refId":"A"}]},
+    {"id":4,"type":"stat","title":"API P99","gridPos":{"x":18,"y":0,"w":6,"h":7},"targets":[{"expr":"histogram_quantile(0.99, sum by (le) (rate(cloudsentinel_http_request_duration_seconds_bucket[5m])))","refId":"A"}]},
+    {"id":5,"type":"timeseries","title":"Probe Throughput","gridPos":{"x":0,"y":7,"w":6,"h":7},"targets":[{"expr":"sum(rate(cloudsentinel_probe_total[5m]))","refId":"A"}]},
+    {"id":6,"type":"stat","title":"Probe Success Rate","gridPos":{"x":6,"y":7,"w":6,"h":7},"targets":[{"expr":"sum(rate(cloudsentinel_probe_total{outcome=\"success\"}[5m])) / clamp_min(sum(rate(cloudsentinel_probe_total[5m])), 0.000001)","refId":"A"}]},
+    {"id":7,"type":"stat","title":"Probe P95","gridPos":{"x":12,"y":7,"w":6,"h":7},"targets":[{"expr":"histogram_quantile(0.95, sum by (le) (rate(cloudsentinel_probe_duration_seconds_bucket[5m])))","refId":"A"}]},
+    {"id":8,"type":"stat","title":"Probe P99","gridPos":{"x":18,"y":7,"w":6,"h":7},"targets":[{"expr":"histogram_quantile(0.99, sum by (le) (rate(cloudsentinel_probe_duration_seconds_bucket[5m])))","refId":"A"}]},
+    {"id":9,"type":"table","title":"Latest Probe Status","gridPos":{"x":0,"y":14,"w":8,"h":7},"targets":[{"expr":"cloudsentinel_probe_status","instant":true,"refId":"A"}]},
+    {"id":10,"type":"stat","title":"Worker Active","gridPos":{"x":8,"y":14,"w":4,"h":7},"targets":[{"expr":"sum(cloudsentinel_worker_active)","refId":"A"}]},
+    {"id":11,"type":"stat","title":"Queue Backlog","gridPos":{"x":12,"y":14,"w":4,"h":7},"targets":[{"expr":"sum(cloudsentinel_worker_queue_length)","refId":"A"}]},
+    {"id":12,"type":"stat","title":"Target UP","gridPos":{"x":16,"y":14,"w":4,"h":7},"targets":[{"expr":"sum(up)","refId":"A"}]},
+    {"id":13,"type":"stat","title":"Active Incidents","gridPos":{"x":20,"y":14,"w":4,"h":7},"targets":[{"expr":"cloudsentinel_active_incidents","refId":"A"}]},
+    {"id":14,"type":"table","title":"Alert Status","gridPos":{"x":0,"y":21,"w":24,"h":7},"targets":[{"expr":"ALERTS{alertstate=\"firing\"}","instant":true,"refId":"A"}]}
+  ]
+}
+

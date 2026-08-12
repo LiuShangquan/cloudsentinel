@@ -1,0 +1,39 @@
+name: validate-gitops
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  desired-state:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - name: Reject unconfigured or unsafe desired state
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -RInE 'REPLACE_[A-Z0-9_]+|REPLACE_ORG|REPLACE_DOMAIN' apps bootstrap platform; then
+            echo 'GitOps placeholders must be replaced before merge.' >&2
+            exit 1
+          fi
+          for environment in staging production; do
+            output="$(mktemp)"
+            kubectl kustomize "apps/cloudsentinel/overlays/${environment}" >"${output}"
+            if grep -Eq '^kind: (Secret|StatefulSet)$' "${output}"; then
+              echo "forbidden Secret or StatefulSet in ${environment}" >&2
+              exit 1
+            fi
+            if grep -Eq 'image: .*:latest([[:space:]]|$)' "${output}"; then
+              echo "mutable image tag in ${environment}" >&2
+              exit 1
+            fi
+            grep -Eq 'image: .+@sha256:[0-9a-f]{64}$' "${output}"
+          done
+          kubectl kustomize bootstrap/argocd >/dev/null
