@@ -12,9 +12,15 @@ spec:
       namespace: cloudsentinel-staging
     - server: https://kubernetes.default.svc
       namespace: cloudsentinel-production
+    - server: https://kubernetes.default.svc
+      namespace: cloudsentinel-data
   clusterResourceWhitelist:
     - group: ""
       kind: Namespace
+    - group: ""
+      kind: PersistentVolume
+    - group: storage.k8s.io
+      kind: StorageClass
   namespaceResourceWhitelist:
     - group: ""
       kind: ConfigMap
@@ -22,10 +28,16 @@ spec:
       kind: Service
     - group: ""
       kind: ServiceAccount
+    - group: ""
+      kind: PersistentVolumeClaim
     - group: apps
       kind: Deployment
+    - group: apps
+      kind: StatefulSet
     - group: batch
       kind: Job
+    - group: batch
+      kind: CronJob
     - group: networking.k8s.io
       kind: Ingress
     - group: networking.k8s.io

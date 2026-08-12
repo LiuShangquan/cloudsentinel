@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cloudsentinel-secret-source
+  labels:
+    app.kubernetes.io/part-of: cloudsentinel
+    pod-security.kubernetes.io/enforce: restricted
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cloudsentinel-secret-reader
+  namespace: cloudsentinel-secret-source
+automountServiceAccountToken: false

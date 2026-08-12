@@ -4,9 +4,9 @@
 
 目标是为 CloudSentinel 下一阶段准备一个可学习、可演进的单 Kubernetes Cluster。集群基础设施采用 3 Control Plane、4 Worker、stacked etcd、containerd、kubeadm、Calico VXLAN 和 Alibaba Cloud Internal NLB。
 
-当前 ACR 个人版实例固定在华北 2（北京，`cn-beijing`），因此集群、VPC、RDS 与 Tair 的默认地域也固定为北京。若改用其他地域，必须先迁移 Registry 或设计并验证跨地域网络；不得继续引用北京 VPC Registry 域名却把节点采购到杭州。
+当前 ACR 个人版实例固定在华北 2（北京，`cn-beijing`），因此集群与 VPC 固定在北京。若改用其他地域，必须先迁移 Registry 或设计并验证跨地域网络；不得继续引用北京 VPC Registry 域名却把节点采购到杭州。
 
-本文负责集群基础设施设计。CloudSentinel 的 Deployment、Service、ConfigMap、ExternalSecret 引用、Ingress 与 Argo CD 资源已在 `deploy/gitops-repository` 中定义；生产数据库和 Redis 只使用集群外 RDS/Tair，不创建 StatefulSet/PVC。
+本文负责集群基础设施设计。CloudSentinel 的 Deployment、Service、ConfigMap、ExternalSecret 与 Argo CD 资源已在 `deploy/gitops-repository` 中定义。当前学生集群的 MySQL/Redis 使用 `lab-*` StatefulSet/PVC；企业生产 Overlay 仍使用集群外 RDS/Tair。
 
 ## 2. 总体拓扑
 
@@ -45,7 +45,7 @@
 | `worker-app-01` | application | CloudSentinel API/Worker、未来 Ingress |
 | `worker-app-02` | application | CloudSentinel API/Worker、未来 Ingress |
 | `worker-monitor` | monitoring | Prometheus、Grafana、Alertmanager |
-| `worker-data-01` | reserved | 不承载 CloudSentinel 生产数据库；保留给独立实验或后续重新规划 |
+| `worker-data-01` | data | 承载当前学生实验的单副本 MySQL/Redis 与同盘逻辑备份；明确接受单点 |
 
 Control Plane 保留 kubeadm 默认 `node-role.kubernetes.io/control-plane:NoSchedule` Taint。Monitoring 与 Data 节点分别使用 Label 和 `NoSchedule` Taint；Application 节点不设置专用 Taint。
 
@@ -116,15 +116,15 @@ Label 用于选择节点；Taint 用于排斥没有 Toleration 的 Pod。Tolerat
 | `cloudsentinel-api` | Deployment | `worker-app-01/02` |
 | `cloudsentinel-worker` | Deployment | `worker-app-01/02` |
 | Prometheus/Grafana/Alertmanager | 平台监控栈 | `worker-monitor` 或平台规划节点 |
-| MySQL | Alibaba Cloud RDS | 集群外托管服务 |
-| Redis | Alibaba Cloud Tair | 集群外托管服务 |
+| MySQL | 单副本 StatefulSet + 8 GiB Retain Local PV | `worker-data-01` |
+| Redis | 单副本 StatefulSet + 2 GiB Retain Local PV | `worker-data-01` |
 | 镜像仓库 | 北京 ACR 个人版，VPC 端点按 digest 拉取 | 集群外托管服务 |
 
 对应 Kustomize 与 Argo CD 资源见 `deploy/gitops-repository`；正式环境参数仍须由平台团队完成替换和审批。
 
 ## 9. 明确的生产限制
 
-1. RDS/Tair 必须启用符合业务 SLA 的多可用区、备份与恢复演练；托管服务不等于无需运维。
+1. 当前 MySQL/Redis 与本地备份共享 `worker-data-01` 故障域，不能满足生产 SLA；真实业务启用前迁移到 RDS/Tair 或经验证的高可用数据平台。
 2. 单 Monitoring Worker 是监控可用性单点，生产应扩展为跨故障域平台监控栈。
 3. stacked etcd 可容忍一个 Member 故障，但仍需 Snapshot 与恢复演练。
 4. API/Worker 通过多副本和拓扑分散降低单节点影响，容量参数需在真实压测后调整。

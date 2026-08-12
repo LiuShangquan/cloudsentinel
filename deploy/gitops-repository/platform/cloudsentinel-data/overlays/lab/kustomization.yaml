@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - storage.yaml
+  - mysql.yaml
+  - redis.yaml
+  - networkpolicy.yaml
+  - backup.yaml
+labels:
+  - pairs:
+      app.kubernetes.io/managed-by: argocd
+      app.kubernetes.io/part-of: cloudsentinel
+    includeSelectors: false
+images:
+  - name: cloudsentinel-mysql
+    newName: crpi-1s64ln3ptbvgkqof-vpc.cn-beijing.personal.cr.aliyuncs.com/cloudsentinel0306/cloudsentinel-mysql
+    digest: sha256:8dbcf531a03aade657e181b9cf2f1d1803ce621a1d55610cb44cb531ab7d7db6
+  - name: cloudsentinel-redis
+    newName: crpi-1s64ln3ptbvgkqof-vpc.cn-beijing.personal.cr.aliyuncs.com/cloudsentinel0306/cloudsentinel-redis
+    digest: sha256:61ea466e4022f3803b9f019e01f7738aac694f01989aee35a013724921d8e742

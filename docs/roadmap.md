@@ -10,7 +10,7 @@
 
 - API/Worker 多副本运行准备与 Worker 健康端点。
 - Kustomize Base、Staging/Production Overlay、Ingress、PDB、HPA、NetworkPolicy。
-- 外部 RDS/Tair、ExternalSecret、PreSync Migration Job。
+- 企业环境外部 RDS/Tair，以及学生实验环境单副本 StatefulSet；两者均使用 ExternalSecret 与 PreSync Migration Job。
 - Argo CD AppProject/ApplicationSet 和独立 GitOps 仓库。
 - GitHub Actions 发布到北京 ACR 个人版、SBOM/Provenance、digest 晋级与环境审批。
 - 中文生产操作、回滚、恢复、安全与故障排查文档。
@@ -25,4 +25,4 @@
 
 ## 不在当前范围
 
-自动修复、Automation Runner、多租户、完整业务 RBAC、OAuth/OIDC、复杂 UI、云资产同步和 HTTP/TCP 以外的 Probe。生产数据库不会回退为集群内 StatefulSet。
+自动修复、Automation Runner、多租户、完整业务 RBAC、OAuth/OIDC、复杂 UI、云资产同步和 HTTP/TCP 以外的 Probe。正式企业生产数据库不会回退为集群内 StatefulSet；当前单副本数据层只服务学生练习集群。

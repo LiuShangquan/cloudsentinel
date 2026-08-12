@@ -36,7 +36,8 @@
 2. 填写 [`deploy/kubernetes/inventory.example.yaml`](../../deploy/kubernetes/inventory.example.yaml) 的副本。
 3. 按[网络与安全设计](security-and-network.md)在阿里云控制台准备 VPC、VSwitch、Security Group、Internal NLB 和私有 DNS。
 4. 从[部署手册](deployment-guide.md)第 0 节开始逐条执行，直至第 30 节验收。
-5. 发生异常时查阅[故障排查与重建](troubleshooting.md)。
+5. 集群通过验收后，按[实验 StatefulSet 数据层](lab-stateful-data.md)准备数据节点、密钥、ACR 镜像和 Argo CD 同步顺序。
+6. 发生异常时查阅[故障排查与重建](troubleshooting.md)。
 
 ## 各文档作用
 
@@ -46,6 +47,7 @@
 | `security-and-network.md` | CIDR、Calico VXLAN、Security Group、firewalld 和 NLB 设计 |
 | `deployment-guide.md` | 从变量准备、CentOS 初始化、kubeadm 建群到网络与 HA 验收的顺序操作手册 |
 | `troubleshooting.md` | 高频故障的现象、检查、解决方向、恢复验证，以及受控重建流程 |
+| `lab-stateful-data.md` | 学生集群 MySQL/Redis StatefulSet、静态本地存储、Secret、备份与启用顺序 |
 | `inventory.example.yaml` | 不含 Secret 的环境变量与节点信息模板 |
 
 ## 部署前必须准备的信息
@@ -61,8 +63,8 @@
 
 ## 重要边界
 
-- `worker-data-01` 是单点，不用于 CloudSentinel 生产数据。
-- CloudSentinel 生产统一使用 Alibaba Cloud RDS 和 Tair，不保留集群内数据库 StatefulSet 选项。
+- `worker-data-01` 是学生练习数据层单点；节点或本地盘故障会同时影响 MySQL、Redis 和同盘备份。
+- 企业生产仍统一使用 Alibaba Cloud RDS 和 Tair；本次 StatefulSet 只属于 `lab-*` Overlay，不构成生产高可用方案。
 - 平台控制器由平台仓库维护；应用 GitOps 仓库只管理 CloudSentinel 的 Namespace 级资源。
 - ACR 个人版固定凭证只进入 GitHub Repository Secrets 和集群密钥后端，不进入 Inventory 或 Git。
 - 本基础设施手册不会自动执行部署；实际应用期望状态以独立 GitOps 仓库为准。

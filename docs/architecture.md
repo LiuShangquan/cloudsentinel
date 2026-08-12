@@ -5,11 +5,11 @@
 CloudSentinel 是一个 Go Module 和模块化单体，生产部署为 API 与 Worker 两类无状态进程。MySQL 是事实来源；Redis Streams 提供 at-least-once 消息投递。Worker 不创建 Incident，Prometheus 判断故障，Alertmanager 路由，API 的 Incident Service 处理 Webhook。
 
 ```text
-客户端 -> Ingress -> API Deployment -> RDS MySQL
-                                  \-> Tair Redis（连接与就绪检查）
+客户端 -> Ingress -> API Deployment -> MySQL
+                                  \-> Redis（连接与就绪检查）
 
-RDS 到期任务 -> Worker Scheduler -> Tair Stream -> 有界 Worker Pool
-                                             -> HTTP/TCP Target -> RDS Result
+MySQL 到期任务 -> Worker Scheduler -> Redis Stream -> 有界 Worker Pool
+                                              -> HTTP/TCP Target -> MySQL Result
 
 API /metrics ----\
 Worker /metrics --> Prometheus -> Alertmanager -> API Machine Webhook -> Incident
@@ -33,7 +33,8 @@ Worker /metrics --> Prometheus -> Alertmanager -> API Machine Webhook -> Inciden
 - API：3 个生产副本、ClusterIP、Ingress、PDB、CPU HPA。
 - Worker：3 个生产副本、PDB、固定并发；先以 Redis backlog 与探测延迟做容量规划，再设计基于自定义指标的弹性。
 - Migration：独立一次性 PreSync Job，失败会阻断应用同步。
-- RDS/Tair：集群外托管服务，不创建 StatefulSet 或 PVC。
+- 企业生产：RDS/Tair 是集群外托管服务，不创建 StatefulSet 或 PVC。
+- 学生练习集群：MySQL/Redis 是 `cloudsentinel-data` 中的单副本 StatefulSet，固定到 `worker-data-01` 并使用 Retain 本地 PV；Staging/Production 使用不同 MySQL Database/账户及不同 Redis DB，但共享同一数据进程和故障域。
 - Secret：ExternalSecret 生成运行时 Secret 与 Registry Pull Secret；应用 ServiceAccount 不挂载 API Token。
 
 Base 使用受限安全上下文、资源请求/限制、探针、拓扑分散和默认入口隔离。动态探测目标使 Worker 出站策略具有业务依赖，最终边界必须同时由应用 SSRF 校验、CNI/出口网关和 VPC 防火墙实现，不能只依赖一个静态 NetworkPolicy。
@@ -41,6 +42,7 @@ Base 使用受限安全上下文、资源请求/限制、探针、拓扑分散�
 ## 可用性与一致性边界
 
 - API/Worker 多副本不代表 RDS/Tair 自动满足 SLA；必须独立配置多可用区、备份与恢复演练。
+- 实验 StatefulSet 更不代表高可用；`worker-data-01`、本地盘和同盘备份都是单点，节点丢失时不能自动漂移到其他 Worker。
 - Rolling Update 通过 `maxUnavailable: 0`、PDB 与 Readiness 降低中断，但 Migration 必须采用 Expand/Contract，避免新旧版本并存时不兼容。
 - 回滚镜像不会自动回滚数据库。Down Migration 仅在经过数据影响评估和独立备份后执行。
 - Staging 自动同步；Production 默认不启用 Argo CD 自动同步，受保护 PR 合并后由发布负责人在变更窗口手动 Sync。

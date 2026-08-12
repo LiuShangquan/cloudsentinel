@@ -1,4 +1,7 @@
 * @LiuShangquan
 /apps/cloudsentinel/overlays/production/ @LiuShangquan
+/apps/cloudsentinel/overlays/lab-production/ @LiuShangquan
 /platform/cloudsentinel-secrets/overlays/production/ @LiuShangquan
+/platform/cloudsentinel-secrets/overlays/lab-production/ @LiuShangquan
+/platform/cloudsentinel-data/ @LiuShangquan
 /bootstrap/ @LiuShangquan

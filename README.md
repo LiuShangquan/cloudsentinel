@@ -6,6 +6,7 @@ CloudSentinel 是一个基于 Go 的基础设施探测与故障事件平台。�
 
 - 本地开发与回归：Docker Compose MVP（MySQL、Redis、API、Worker、Prometheus、Alertmanager、Grafana）。
 - 企业生产：Kubernetes + Kustomize + Argo CD，MySQL/Redis 统一使用集群外阿里云 RDS/Tair。
+- 学生练习集群：保持 3 Control Plane + 4 Worker 拓扑，MySQL/Redis 以单副本 StatefulSet 固定运行在 `worker-data-01`，使用 Retain 本地 PV 和定时逻辑备份；这是低成本单点方案，不具备生产高可用性。
 - CI/CD：GitHub Actions 构建三个不可变镜像，推送到北京 ACR 个人版并创建独立 GitOps 仓库 PR；工作流不直接操作 Kubernetes。
 - 数据库变更：版本化 SQL Migration；生产由 Argo CD PreSync Job 在应用滚动更新前执行。
 - 密钥：Git 只保存 ExternalSecret 引用，实际值由平台密钥控制面提供。
@@ -21,7 +22,8 @@ CloudSentinel 是一个基于 Go 的基础设施探测与故障事件平台。�
                   Staging GitOps PR
                          |
                          v
-               Argo CD -> Kubernetes -> RDS/Tair
+               Argo CD -> Kubernetes -> RDS/Tair（企业）
+                                      -> StatefulSet（学生实验）
                          |
               手工 PROMOTE + Production PR
 ```
@@ -29,8 +31,8 @@ CloudSentinel 是一个基于 Go 的基础设施探测与故障事件平台。�
 业务运行链路保持不变：
 
 ```text
-客户端 -> API -> RDS/MySQL
-RDS/MySQL -> 调度器 -> Tair/Redis Stream -> Worker Pool -> HTTP/TCP 目标
+客户端 -> API -> MySQL
+MySQL -> 调度器 -> Redis Stream -> Worker Pool -> HTTP/TCP 目标
 API /metrics + Worker /metrics -> Prometheus -> Alertmanager -> API Webhook -> Incident
 ```
 
@@ -85,4 +87,4 @@ GitOps 模板故意包含 `REPLACE_*`，复制为正式配置仓库后必须替�
 
 ## 生产边界
 
-生产清单不包含 MySQL/Redis StatefulSet。RDS/Tair 的多可用区、备份、恢复、参数与容量由云资源层负责；CloudSentinel 只管理连接契约和 Migration。当前仍不实现自动修复、多租户、完整业务 RBAC、OAuth/OIDC、复杂前端或 HTTP/TCP 以外的 Probe。
+企业生产 Overlay 不包含 MySQL/Redis StatefulSet。学生实验 Overlay 仅用于本次低成本自建集群，单个数据节点或系统盘故障会同时中断数据库、消息流和本地备份。正式上线时必须迁回 RDS/Tair 或经验证的高可用数据平台。当前仍不实现自动修复、多租户、完整业务 RBAC、OAuth/OIDC、复杂前端或 HTTP/TCP 以外的 Probe。

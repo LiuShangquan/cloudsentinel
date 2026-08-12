@@ -1,0 +1,31 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: cloudsentinel-secret-reader
+  namespace: cloudsentinel-secret-source
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames:
+      - cloudsentinel-data-credentials
+      - cloudsentinel-staging-app
+      - cloudsentinel-production-app
+      - cloudsentinel-registry
+    verbs: ["get"]
+  - apiGroups: ["authorization.k8s.io"]
+    resources: ["selfsubjectaccessreviews", "selfsubjectrulesreviews"]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: cloudsentinel-secret-reader
+  namespace: cloudsentinel-secret-source
+subjects:
+  - kind: ServiceAccount
+    name: cloudsentinel-secret-reader
+    namespace: cloudsentinel-secret-source
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: cloudsentinel-secret-reader

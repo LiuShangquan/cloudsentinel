@@ -1,0 +1,141 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: cloudsentinel-data
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: cloudsentinel-redis
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redis
+  namespace: cloudsentinel-data
+  annotations:
+    argocd.argoproj.io/sync-wave: "-20"
+spec:
+  serviceName: redis
+  replicas: 1
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cloudsentinel-redis
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cloudsentinel-redis
+        app.kubernetes.io/component: stream
+        app.kubernetes.io/part-of: cloudsentinel
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      imagePullSecrets:
+        - name: cloudsentinel-registry
+      terminationGracePeriodSeconds: 30
+      nodeSelector:
+        kubernetes.io/hostname: worker-data-01
+        node-role: data
+      tolerations:
+        - key: dedicated
+          operator: Equal
+          value: data
+          effect: NoSchedule
+      securityContext:
+        fsGroup: 999
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: render-config
+          image: cloudsentinel-redis
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              if ! printf '%s' "${REDIS_PASSWORD}" | grep -Eq '^[A-Za-z0-9_-]{32,128}$'; then
+                echo 'REDIS_PASSWORD must be 32-128 characters from [A-Za-z0-9_-]' >&2
+                exit 1
+              fi
+              umask 077
+              cat > /work/redis.conf <<EOF
+              bind 0.0.0.0
+              protected-mode yes
+              port 6379
+              requirepass ${REDIS_PASSWORD}
+              appendonly yes
+              appendfsync everysec
+              auto-aof-rewrite-percentage 100
+              auto-aof-rewrite-min-size 64mb
+              save 300 10
+              maxmemory 128mb
+              maxmemory-policy noeviction
+              dir /data
+              EOF
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom: {secretKeyRef: {name: cloudsentinel-data-credentials, key: REDIS_PASSWORD}}
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 999
+            runAsGroup: 999
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - {name: rendered-config, mountPath: /work}
+            - {name: data, mountPath: /data}
+      containers:
+        - name: redis
+          image: cloudsentinel-redis
+          imagePullPolicy: IfNotPresent
+          command: ["redis-server", "/etc/redis-private/redis.conf"]
+          ports:
+            - name: redis
+              containerPort: 6379
+          env:
+            - name: REDISCLI_AUTH
+              valueFrom: {secretKeyRef: {name: cloudsentinel-data-credentials, key: REDIS_PASSWORD}}
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {cpu: 500m, memory: 256Mi}
+          startupProbe:
+            exec:
+              command: ["/bin/sh", "-ec", "redis-cli -h 127.0.0.1 ping | grep -q PONG"]
+            periodSeconds: 3
+            failureThreshold: 30
+          livenessProbe:
+            exec:
+              command: ["/bin/sh", "-ec", "redis-cli -h 127.0.0.1 ping | grep -q PONG"]
+            periodSeconds: 15
+            timeoutSeconds: 3
+            failureThreshold: 4
+          readinessProbe:
+            exec:
+              command: ["/bin/sh", "-ec", "redis-cli -h 127.0.0.1 ping | grep -q PONG"]
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 999
+            runAsGroup: 999
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - {name: data, mountPath: /data}
+            - {name: rendered-config, mountPath: /etc/redis-private, readOnly: true}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: redis-data
+        - name: rendered-config
+          emptyDir: {}

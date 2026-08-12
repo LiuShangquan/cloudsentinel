@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloudsentinel-api
+spec:
+  template:
+    spec:
+      nodeSelector:
+        node-role: app
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloudsentinel-worker
+spec:
+  template:
+    spec:
+      nodeSelector:
+        node-role: app
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cloudsentinel-migrate
+spec:
+  template:
+    spec:
+      nodeSelector:
+        node-role: app

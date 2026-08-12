@@ -34,6 +34,7 @@ jobs:
           go vet ./...
           go test -count=1 ./...
           node --test scripts/gitops-images.test.mjs
+          node --test scripts/gitops-data-images.test.mjs
       - name: Build processes
         run: |
           go build -trimpath -o /tmp/cloudsentinel-api ./cmd/api
@@ -50,7 +51,7 @@ jobs:
         run: |
           set -euo pipefail
           kubectl version --client
-          for environment in staging production; do
+          for environment in staging production lab-staging lab-production; do
             output="$(mktemp)"
             kubectl kustomize "deploy/gitops-repository/apps/cloudsentinel/overlays/${environment}" >"${output}"
             if grep -Eq '^kind: (Secret|StatefulSet)$' "${output}"; then
@@ -62,4 +63,17 @@ jobs:
             image_count="$(grep -Ec 'image: crpi-1s64ln3ptbvgkqof-vpc\.cn-beijing\.personal\.cr\.aliyuncs\.com/cloudsentinel0306/cloudsentinel-(api|worker|migrate)@sha256:' "${output}")"
             test "${image_count}" -eq 3
           done
+          data_output="$(mktemp)"
+          kubectl kustomize deploy/gitops-repository/platform/cloudsentinel-data/overlays/lab >"${data_output}"
+          test "$(grep -c '^kind: StatefulSet$' "${data_output}")" -eq 2
+          test "$(grep -c '^kind: PersistentVolume$' "${data_output}")" -eq 3
+          test "$(grep -c '^  persistentVolumeReclaimPolicy: Retain$' "${data_output}")" -eq 3
+          test "$(grep -Ec '^[[:space:]]+node-role: data$' "${data_output}")" -eq 5
+          test "$(grep -Ec '^[[:space:]]+kubernetes.io/hostname: worker-data-01$' "${data_output}")" -eq 5
+          if grep -Eq '^  type: (NodePort|LoadBalancer)$' "${data_output}"; then
+            echo 'data services must remain private ClusterIP services' >&2
+            exit 1
+          fi
+          kubectl kustomize deploy/gitops-repository/bootstrap/secret-store >/dev/null
+          kubectl kustomize deploy/gitops-repository/platform/cloudsentinel-secrets/overlays/lab-data >/dev/null
           kubectl kustomize deploy/gitops-repository/bootstrap/argocd >/dev/null

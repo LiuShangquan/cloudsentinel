@@ -10,9 +10,11 @@ spec:
     - list:
         elements:
           - environment: staging
+            overlay: lab-staging
             namespace: cloudsentinel-staging
             autoSync: true
           - environment: production
+            overlay: lab-production
             namespace: cloudsentinel-production
             autoSync: false
   template:
@@ -26,7 +28,7 @@ spec:
       source:
         repoURL: https://github.com/LiuShangquan/cloudsentinel-gitops.git
         targetRevision: main
-        path: apps/cloudsentinel/overlays/{{.environment}}
+        path: apps/cloudsentinel/overlays/{{.overlay}}
       destination:
         server: https://kubernetes.default.svc
         namespace: "{{.namespace}}"

@@ -1,0 +1,114 @@
+name: mirror-lab-data-images
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudsentinel-data-image-mirror
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      ACR_PUBLIC_REGISTRY: crpi-1s64ln3ptbvgkqof.cn-beijing.personal.cr.aliyuncs.com
+      ACR_DEPLOY_REGISTRY: crpi-1s64ln3ptbvgkqof-vpc.cn-beijing.personal.cr.aliyuncs.com
+      ACR_NAMESPACE: cloudsentinel0306
+      MYSQL_SOURCE: docker.io/library/mysql:8.4.10
+      REDIS_SOURCE: docker.io/library/redis:8.4.5-alpine
+    steps:
+      - name: Checkout source tools
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - name: Validate mirror boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ github.repository_owner }}" = "${{ vars.RELEASE_ALLOWED_OWNER }}"
+          test "${{ github.event.repository.name }}" = "${{ vars.RELEASE_ALLOWED_REPOSITORY }}"
+          test "${GITHUB_REF}" = "refs/heads/main"
+          docker buildx version
+      - name: Log in to ACR Personal Edition
+        env:
+          ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
+          ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${ACR_USERNAME}"
+          test -n "${ACR_PASSWORD}"
+          printf '%s' "${ACR_PASSWORD}" | docker login "${ACR_PUBLIC_REGISTRY}" --username "${ACR_USERNAME}" --password-stdin
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+      - name: Mirror MySQL
+        id: mysql
+        shell: bash
+        run: |
+          set -euo pipefail
+          target="${ACR_PUBLIC_REGISTRY}/${ACR_NAMESPACE}/cloudsentinel-mysql:8.4.10"
+          docker buildx imagetools create --tag "${target}" "${MYSQL_SOURCE}"
+          digest="$(docker buildx imagetools inspect "${target}" | awk '$1 == "Digest:" {print $2; exit}')"
+          [[ "${digest}" =~ ^sha256:[0-9a-f]{64}$ ]]
+          echo "digest=${digest}" >>"${GITHUB_OUTPUT}"
+      - name: Mirror Redis
+        id: redis
+        shell: bash
+        run: |
+          set -euo pipefail
+          target="${ACR_PUBLIC_REGISTRY}/${ACR_NAMESPACE}/cloudsentinel-redis:8.4.5-alpine"
+          docker buildx imagetools create --tag "${target}" "${REDIS_SOURCE}"
+          digest="$(docker buildx imagetools inspect "${target}" | awk '$1 == "Digest:" {print $2; exit}')"
+          [[ "${digest}" =~ ^sha256:[0-9a-f]{64}$ ]]
+          echo "digest=${digest}" >>"${GITHUB_OUTPUT}"
+      - name: Mint short-lived GitOps repository token
+        id: gitops-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.GITOPS_APP_CLIENT_ID }}
+          private-key: ${{ secrets.GITOPS_APP_PRIVATE_KEY }}
+          owner: ${{ vars.GITOPS_OWNER }}
+          repositories: ${{ vars.GITOPS_REPOSITORY_NAME }}
+          permission-contents: write
+          permission-pull-requests: write
+      - name: Checkout GitOps repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          repository: ${{ vars.GITOPS_OWNER }}/${{ vars.GITOPS_REPOSITORY_NAME }}
+          token: ${{ steps.gitops-token.outputs.token }}
+          path: gitops
+          persist-credentials: true
+      - name: Open data image PR
+        env:
+          GH_TOKEN: ${{ steps.gitops-token.outputs.token }}
+          MYSQL_DIGEST: ${{ steps.mysql.outputs.digest }}
+          REDIS_DIGEST: ${{ steps.redis.outputs.digest }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          file=gitops/platform/cloudsentinel-data/overlays/lab/kustomization.yaml
+          node scripts/gitops-data-images.mjs \
+            --file "${file}" \
+            --registry "${ACR_DEPLOY_REGISTRY}/${ACR_NAMESPACE}" \
+            --mysql-digest "${MYSQL_DIGEST}" \
+            --redis-digest "${REDIS_DIGEST}"
+          cd gitops
+          if git diff --quiet -- platform/cloudsentinel-data/overlays/lab/kustomization.yaml; then
+            echo 'GitOps already pins the mirrored data image digests; no PR is required.'
+            exit 0
+          fi
+          branch="release/data-images-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          git switch -c "${branch}"
+          git config user.name cloudsentinel-release-bot
+          git config user.email cloudsentinel-release-bot@users.noreply.github.com
+          git add platform/cloudsentinel-data/overlays/lab/kustomization.yaml
+          git commit -m "release(data): mirror pinned MySQL and Redis images"
+          git push --set-upstream origin "${branch}"
+          gh pr create --repo '${{ vars.GITOPS_OWNER }}/${{ vars.GITOPS_REPOSITORY_NAME }}' --base main --head "${branch}" \
+            --title 'release(data): mirror pinned MySQL and Redis images' \
+            --body 'Mirrors the approved lab MySQL and Redis versions into the Beijing ACR Personal Edition instance and pins the resulting immutable digests.'
+      - name: Log out of ACR
+        if: always()
+        run: docker logout "${ACR_PUBLIC_REGISTRY}" || true

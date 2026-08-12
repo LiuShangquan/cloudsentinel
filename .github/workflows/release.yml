@@ -120,12 +120,12 @@ jobs:
         run: |
           set -euo pipefail
           node scripts/gitops-images.mjs \
-            --file gitops/apps/cloudsentinel/overlays/staging/kustomization.yaml \
+            --file gitops/apps/cloudsentinel/overlays/lab-staging/kustomization.yaml \
             --registry "${ACR_DEPLOY_REGISTRY}/${ACR_NAMESPACE}" \
             --api-digest "${API_DIGEST}" \
             --worker-digest "${WORKER_DIGEST}" \
             --migrate-digest "${MIGRATE_DIGEST}"
-          if git -C gitops diff --quiet -- apps/cloudsentinel/overlays/staging/kustomization.yaml; then
+          if git -C gitops diff --quiet -- apps/cloudsentinel/overlays/lab-staging/kustomization.yaml; then
             echo "Staging already references these image digests."
             exit 0
           fi
@@ -134,7 +134,7 @@ jobs:
           git switch -c "${branch}"
           git config user.name cloudsentinel-release-bot
           git config user.email cloudsentinel-release-bot@users.noreply.github.com
-          git add apps/cloudsentinel/overlays/staging/kustomization.yaml
+          git add apps/cloudsentinel/overlays/lab-staging/kustomization.yaml
           git commit -m "release(staging): cloudsentinel ${GITHUB_SHA}"
           git push --set-upstream origin "${branch}"
           gh pr create \

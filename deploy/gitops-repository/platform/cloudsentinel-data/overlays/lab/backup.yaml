@@ -1,0 +1,127 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: mysql-backup
+  namespace: cloudsentinel-data
+spec:
+  schedule: "15 2 * * *"
+  timeZone: Asia/Shanghai
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 1800
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: cloudsentinel-mysql-backup
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          enableServiceLinks: false
+          imagePullSecrets:
+            - name: cloudsentinel-registry
+          nodeSelector:
+            kubernetes.io/hostname: worker-data-01
+            node-role: data
+          tolerations:
+            - {key: dedicated, operator: Equal, value: data, effect: NoSchedule}
+          securityContext:
+            fsGroup: 999
+            seccompProfile: {type: RuntimeDefault}
+          containers:
+            - name: backup
+              image: cloudsentinel-mysql
+              imagePullPolicy: IfNotPresent
+              command:
+                - /bin/bash
+                - -ec
+                - |
+                  target="/backup/mysql-$(date -u +%Y%m%dT%H%M%SZ).sql"
+                  mysqldump --host=mysql --user=cloudsentinel_backup \
+                    --all-databases --single-transaction --routines --events \
+                    --set-gtid-purged=OFF --no-tablespaces > "${target}"
+                  test -s "${target}"
+                  find /backup -maxdepth 1 -type f -name 'mysql-*.sql' -mtime +7 -delete
+              env:
+                - name: MYSQL_PWD
+                  valueFrom: {secretKeyRef: {name: cloudsentinel-data-credentials, key: MYSQL_BACKUP_PASSWORD}}
+              resources:
+                requests: {cpu: 50m, memory: 64Mi}
+                limits: {cpu: 500m, memory: 128Mi}
+              securityContext:
+                allowPrivilegeEscalation: false
+                runAsNonRoot: true
+                runAsUser: 999
+                runAsGroup: 999
+                capabilities: {drop: ["ALL"]}
+              volumeMounts:
+                - {name: backup, mountPath: /backup}
+          volumes:
+            - name: backup
+              persistentVolumeClaim: {claimName: data-backup}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: redis-backup
+  namespace: cloudsentinel-data
+spec:
+  schedule: "45 2 * * *"
+  timeZone: Asia/Shanghai
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 900
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: cloudsentinel-redis-backup
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          enableServiceLinks: false
+          imagePullSecrets:
+            - name: cloudsentinel-registry
+          nodeSelector:
+            kubernetes.io/hostname: worker-data-01
+            node-role: data
+          tolerations:
+            - {key: dedicated, operator: Equal, value: data, effect: NoSchedule}
+          securityContext:
+            fsGroup: 999
+            seccompProfile: {type: RuntimeDefault}
+          containers:
+            - name: backup
+              image: cloudsentinel-redis
+              imagePullPolicy: IfNotPresent
+              command:
+                - /bin/sh
+                - -ec
+                - |
+                  target="/backup/redis-$(date -u +%Y%m%dT%H%M%SZ).rdb"
+                  redis-cli -h redis --rdb "${target}"
+                  test -s "${target}"
+                  find /backup -maxdepth 1 -type f -name 'redis-*.rdb' -mtime +7 -delete
+              env:
+                - name: REDISCLI_AUTH
+                  valueFrom: {secretKeyRef: {name: cloudsentinel-data-credentials, key: REDIS_PASSWORD}}
+              resources:
+                requests: {cpu: 25m, memory: 32Mi}
+                limits: {cpu: 250m, memory: 128Mi}
+              securityContext:
+                allowPrivilegeEscalation: false
+                runAsNonRoot: true
+                runAsUser: 999
+                runAsGroup: 999
+                capabilities: {drop: ["ALL"]}
+              volumeMounts:
+                - {name: backup, mountPath: /backup}
+          volumes:
+            - name: backup
+              persistentVolumeClaim: {claimName: data-backup}

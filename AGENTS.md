@@ -4,7 +4,7 @@
 
 CloudSentinel 是一个基于 Go 的平台，用于资产登记、定时 HTTP/TCP 探测、监控、告警路由和故障事件生命周期管理。`v0.1.0-compose-mvp` 继续作为本地开发与验收基线；当前批准的交付扩展是在不改变业务边界的前提下，增加面向 Kubernetes 的企业级 GitOps 发布能力。不得借此实现自动修复、多租户、完整 RBAC、OAuth/OIDC、复杂前端或额外的可观测性技术栈。
 
-生产 GitOps 基线采用独立配置仓库、Kustomize、Argo CD 和 GitHub Actions。CloudSentinel API/Worker 运行在 Kubernetes；MySQL 与 Redis 统一使用集群外托管服务（阿里云 RDS 与 Tair），不得在生产清单中创建 MySQL/Redis StatefulSet。数据库变更由独立的 Argo CD PreSync Migration Job 执行。Secret 不得进入 Git，只能由集群密钥控制面注入。
+企业生产 GitOps 基线采用独立配置仓库、Kustomize、Argo CD 和 GitHub Actions。CloudSentinel API/Worker 运行在 Kubernetes；正式生产的 MySQL 与 Redis 统一使用集群外托管服务（阿里云 RDS 与 Tair），不得在企业生产 Overlay 中创建 MySQL/Redis StatefulSet。经项目所有者批准的学生练习集群是明确例外：`platform/cloudsentinel-data/overlays/lab` 可部署单副本 MySQL/Redis StatefulSet，并由 `lab-staging`、`lab-production` Overlay 使用；不得把该例外描述为高可用生产方案。数据库变更仍由独立的 Argo CD PreSync Migration Job 执行。Secret 不得进入 Git，只能由集群密钥控制面注入。
 
 ## 架构与技术
 

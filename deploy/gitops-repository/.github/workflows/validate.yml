@@ -19,11 +19,21 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if grep -RInE 'REPLACE_[A-Z0-9_]+|REPLACE_ORG|REPLACE_DOMAIN' apps bootstrap platform; then
+          active_paths=(
+            apps/cloudsentinel/base
+            apps/cloudsentinel/overlays/lab-staging
+            apps/cloudsentinel/overlays/lab-production
+            bootstrap
+            platform/cloudsentinel-data/overlays/lab
+            platform/cloudsentinel-secrets/overlays/lab-staging
+            platform/cloudsentinel-secrets/overlays/lab-production
+            platform/cloudsentinel-secrets/overlays/lab-data
+          )
+          if grep -RInE 'REPLACE_[A-Z0-9_]+|REPLACE_ORG|REPLACE_DOMAIN' "${active_paths[@]}"; then
             echo 'GitOps placeholders must be replaced before merge.' >&2
             exit 1
           fi
-          for environment in staging production; do
+          for environment in lab-staging lab-production; do
             output="$(mktemp)"
             kubectl kustomize "apps/cloudsentinel/overlays/${environment}" >"${output}"
             if grep -Eq '^kind: (Secret|StatefulSet)$' "${output}"; then
@@ -38,8 +48,23 @@ jobs:
             image_count="$(grep -Ec 'image: crpi-1s64ln3ptbvgkqof-vpc\.cn-beijing\.personal\.cr\.aliyuncs\.com/cloudsentinel0306/cloudsentinel-(api|worker|migrate)@sha256:[0-9a-f]{64}$' "${output}")"
             test "${image_count}" -eq 3
           done
+          data_output="$(mktemp)"
+          kubectl kustomize platform/cloudsentinel-data/overlays/lab >"${data_output}"
+          test "$(grep -c '^kind: StatefulSet$' "${data_output}")" -eq 2
+          test "$(grep -c '^kind: PersistentVolume$' "${data_output}")" -eq 3
+          test "$(grep -c '^  persistentVolumeReclaimPolicy: Retain$' "${data_output}")" -eq 3
+          test "$(grep -Ec '^[[:space:]]+node-role: data$' "${data_output}")" -eq 5
+          test "$(grep -Ec '^[[:space:]]+kubernetes.io/hostname: worker-data-01$' "${data_output}")" -eq 5
+          if grep -Eq '^  type: (NodePort|LoadBalancer)$' "${data_output}"; then
+            echo 'data services must remain private ClusterIP services.' >&2
+            exit 1
+          fi
+          data_image_count="$(grep -Ec 'image: crpi-1s64ln3ptbvgkqof-vpc\.cn-beijing\.personal\.cr\.aliyuncs\.com/cloudsentinel0306/cloudsentinel-(mysql|redis)@sha256:[0-9a-f]{64}$' "${data_output}")"
+          test "${data_image_count}" -eq 6
           if grep -RIn 'newName: crpi-1s64ln3ptbvgkqof\.cn-beijing\.personal\.cr\.aliyuncs\.com' apps; then
             echo 'workloads must use the ACR VPC endpoint, not the public push endpoint.' >&2
             exit 1
           fi
+          kubectl kustomize bootstrap/secret-store >/dev/null
+          kubectl kustomize platform/cloudsentinel-secrets/overlays/lab-data >/dev/null
           kubectl kustomize bootstrap/argocd >/dev/null
