@@ -6,7 +6,7 @@ CloudSentinel 是一个基于 Go 的基础设施探测与故障事件平台。�
 
 - 本地开发与回归：Docker Compose MVP（MySQL、Redis、API、Worker、Prometheus、Alertmanager、Grafana）。
 - 企业生产：Kubernetes + Kustomize + Argo CD，MySQL/Redis 统一使用集群外阿里云 RDS/Tair。
-- CI/CD：GitHub Actions 构建三个不可变镜像并创建独立 GitOps 仓库 PR；工作流不直接操作 Kubernetes。
+- CI/CD：GitHub Actions 构建三个不可变镜像，推送到北京 ACR 个人版并创建独立 GitOps 仓库 PR；工作流不直接操作 Kubernetes。
 - 数据库变更：版本化 SQL Migration；生产由 Argo CD PreSync Job 在应用滚动更新前执行。
 - 密钥：Git 只保存 ExternalSecret 引用，实际值由平台密钥控制面提供。
 
@@ -14,7 +14,8 @@ CloudSentinel 是一个基于 Go 的基础设施探测与故障事件平台。�
 开发者 -> 源码 PR -> CI -> main
                          |
                          v
-              OIDC -> ACR（API/Worker/Migration digest）
+             ACR 固定凭证 -> ACR 个人版公网端点
+                    （API/Worker/Migration digest）
                          |
                          v
                   Staging GitOps PR
@@ -22,7 +23,7 @@ CloudSentinel 是一个基于 Go 的基础设施探测与故障事件平台。�
                          v
                Argo CD -> Kubernetes -> RDS/Tair
                          |
-              受保护环境审批 + Production PR
+              手工 PROMOTE + Production PR
 ```
 
 业务运行链路保持不变：
@@ -77,6 +78,10 @@ docker compose config
 ```
 
 GitOps 模板故意包含 `REPLACE_*`，复制为正式配置仓库后必须替换并通过该仓库的 `validate-gitops` 检查。不得把 `.env`、JWT、数据库 URL、Webhook Token、ACR 密码或 Kubeconfig 提交到 Git。
+
+当前低成本镜像基线使用北京 ACR 个人版：GitHub Actions 从公网端点推送，Kubernetes 从同实例 VPC 端点按 digest 拉取。个人版无生产 SLA且可能共享限流；正式上线前必须在真实节点验证拉取、滚动发布和凭证轮换，容量或可用性不足时迁移到 ACR 企业版或组织维护的 Harbor。
+
+当前 GitHub Free 私有仓库基线不依赖 Environment Secrets、Required Reviewers 或私有分支保护：固定 ACR 凭证存放在 Repository Secrets；生产晋级要求手工输入 `PROMOTE`、创建 GitOps PR，并在合并后由操作者手工执行 Argo CD Sync。该方案保留审计链和误操作阻断，但不等价于强制双人审批；升级 GitHub Pro 后应立即启用私有分支保护。
 
 ## 生产边界
 

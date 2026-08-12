@@ -26,7 +26,7 @@ Worker /metrics --> Prometheus -> Alertmanager -> API Machine Webhook -> Inciden
 | `cloudsentinel` | Go、Dockerfile、Migration、测试、发布工作流 | 不保存环境 Secret，不直接部署集群 |
 | `cloudsentinel-gitops` | Kustomize Base/Overlay、Argo CD 项目与应用 | 不构建镜像，不保存应用源码或明文 Secret |
 
-发布过程为单向供应链：源码合并后使用 GitHub OIDC 获取短期阿里云身份，推送 API/Worker/Migration 镜像到 ACR Enterprise；工作流用 GitHub App 短期 Token 创建 Staging PR。Staging 通过后，受保护的 Production 工作流复制完全相同的 digest 创建晋级 PR。Argo CD 是唯一向集群收敛期望状态的组件。
+发布过程为单向供应链：源码合并后，GitHub 托管 Runner 使用 Repository Secrets 中的固定 Registry 凭证，将 API/Worker/Migration 镜像推送到北京 ACR 个人版公网端点；写入 GitOps 的镜像名称使用同一实例的 VPC 端点。工作流用 GitHub App 短期 Token 创建 Staging PR。Staging 通过后，操作者从 `main` 手工触发 Production 工作流并输入 `PROMOTE`，工作流复制完全相同的 digest 创建晋级 PR。Argo CD 是唯一向集群收敛期望状态的组件，Production 始终由操作者手工同步。
 
 ## Kubernetes 映射
 
@@ -44,7 +44,8 @@ Base 使用受限安全上下文、资源请求/限制、探针、拓扑分散�
 - Rolling Update 通过 `maxUnavailable: 0`、PDB 与 Readiness 降低中断，但 Migration 必须采用 Expand/Contract，避免新旧版本并存时不兼容。
 - 回滚镜像不会自动回滚数据库。Down Migration 仅在经过数据影响评估和独立备份后执行。
 - Staging 自动同步；Production 默认不启用 Argo CD 自动同步，受保护 PR 合并后由发布负责人在变更窗口手动 Sync。
+- ACR 个人版是已接受的初期成本折中，不提供生产 SLA且共享拉取能力；节点保留 `IfNotPresent` 缓存并控制滚动并发，真实可用性不足时迁移到 ACR 企业版或企业维护的 Harbor。
 
 ## 安全边界
 
-用户 JWT 与 Alertmanager Machine Token 严格隔离。镜像发布不用长期阿里云 AK；GitOps 写入不用个人 PAT。应用 Pod 为非 Root、只读根文件系统、移除 Linux Capabilities，且无 Kubernetes API 凭证。生产密钥在平台密钥系统中轮换；Git 只记录远端键名。
+用户 JWT 与 Alertmanager Machine Token 严格隔离。个人版不使用阿里云 AccessKey，但镜像发布需要固定 Registry 用户名/密码；该凭证只存放在 GitHub Repository Secrets 中并纳入轮换。GitOps 写入不用个人 PAT。应用 Pod 为非 Root、只读根文件系统、移除 Linux Capabilities，且无 Kubernetes API 凭证。生产密钥在平台密钥系统中轮换；Git 只记录远端键名。

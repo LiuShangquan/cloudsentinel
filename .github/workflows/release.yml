@@ -7,7 +7,6 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 concurrency:
   group: cloudsentinel-release
@@ -15,52 +14,42 @@ concurrency:
 
 jobs:
   publish:
-    # Ephemeral, organization-managed runner in the Alibaba Cloud account.
-    # The runner image must contain Docker, jq, gh, Node.js and Alibaba Cloud CLI >=3.3.0.
-    runs-on: [self-hosted, linux, x64, cloudsentinel-release]
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
-    environment: registry-release
     env:
-      ACR_REGISTRY: ${{ vars.ACR_REGISTRY }}
-      ACR_NAMESPACE: ${{ vars.ACR_NAMESPACE }}
-      ACR_INSTANCE_ID: ${{ vars.ACR_INSTANCE_ID }}
-      ACR_API_ENDPOINT: ${{ vars.ACR_API_ENDPOINT }}
+      ACR_PUBLIC_REGISTRY: crpi-1s64ln3ptbvgkqof.cn-beijing.personal.cr.aliyuncs.com
+      ACR_DEPLOY_REGISTRY: crpi-1s64ln3ptbvgkqof-vpc.cn-beijing.personal.cr.aliyuncs.com
+      ACR_NAMESPACE: cloudsentinel0306
     steps:
       - name: Checkout source
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
-      - name: Validate hardened runner
+      - name: Validate release boundary
         shell: bash
         run: |
           set -euo pipefail
           test "${{ github.repository_owner }}" = "${{ vars.RELEASE_ALLOWED_OWNER }}"
           test "${{ github.event.repository.name }}" = "${{ vars.RELEASE_ALLOWED_REPOSITORY }}"
           test "${GITHUB_REF}" = "refs/heads/main"
+          test -n "${ACR_PUBLIC_REGISTRY}"
+          test -n "${ACR_DEPLOY_REGISTRY}"
+          test -n "${ACR_NAMESPACE}"
           command -v docker
-          command -v jq
           command -v gh
           command -v node
-          command -v aliyun
           docker buildx version
-          aliyun version
-      - name: Assume Alibaba Cloud release role with OIDC
-        uses: aliyun/configure-aliyun-credentials-action@1e5248c8d5d93a8781ac344a68e19a43341e79e6 # v1.1.0
-        with:
-          role-to-assume: ${{ vars.ALIBABA_CLOUD_RELEASE_ROLE_ARN }}
-          oidc-provider-arn: ${{ vars.ALIBABA_CLOUD_GITHUB_OIDC_PROVIDER_ARN }}
-          role-session-name: cloudsentinel-${{ github.run_id }}
-          audience: ${{ vars.ALIBABA_CLOUD_OIDC_AUDIENCE }}
-      - name: Log in to ACR with a temporary token
+      - name: Log in to ACR Personal Edition
+        env:
+          ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
+          ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
         shell: bash
         run: |
           set -euo pipefail
-          response="$(aliyun cr GetAuthorizationToken \
-            --region '${{ vars.ALIBABA_CLOUD_REGION }}' \
-            --endpoint "${ACR_API_ENDPOINT}" \
-            --InstanceId "${ACR_INSTANCE_ID}")"
-          username="$(jq -er '.TempUsername' <<<"${response}")"
-          password="$(jq -er '.AuthorizationToken' <<<"${response}")"
-          echo "::add-mask::${password}"
-          printf '%s' "${password}" | docker login "${ACR_REGISTRY}" --username "${username}" --password-stdin
+          test -n "${ACR_USERNAME}"
+          test -n "${ACR_PASSWORD}"
+          printf '%s' "${ACR_PASSWORD}" |
+            docker login "${ACR_PUBLIC_REGISTRY}" \
+              --username "${ACR_USERNAME}" \
+              --password-stdin
       - name: Set up Buildx
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
       - name: Build and push API
@@ -71,7 +60,7 @@ jobs:
           target: runtime
           build-args: TARGET=api
           push: true
-          tags: ${{ env.ACR_REGISTRY }}/${{ env.ACR_NAMESPACE }}/cloudsentinel-api:${{ github.sha }}
+          tags: ${{ env.ACR_PUBLIC_REGISTRY }}/${{ env.ACR_NAMESPACE }}/cloudsentinel-api:${{ github.sha }}
           platforms: linux/amd64
           provenance: mode=max
           sbom: true
@@ -85,7 +74,7 @@ jobs:
           target: runtime
           build-args: TARGET=worker
           push: true
-          tags: ${{ env.ACR_REGISTRY }}/${{ env.ACR_NAMESPACE }}/cloudsentinel-worker:${{ github.sha }}
+          tags: ${{ env.ACR_PUBLIC_REGISTRY }}/${{ env.ACR_NAMESPACE }}/cloudsentinel-worker:${{ github.sha }}
           platforms: linux/amd64
           provenance: mode=max
           sbom: true
@@ -98,7 +87,7 @@ jobs:
           context: .
           target: migration
           push: true
-          tags: ${{ env.ACR_REGISTRY }}/${{ env.ACR_NAMESPACE }}/cloudsentinel-migrate:${{ github.sha }}
+          tags: ${{ env.ACR_PUBLIC_REGISTRY }}/${{ env.ACR_NAMESPACE }}/cloudsentinel-migrate:${{ github.sha }}
           platforms: linux/amd64
           provenance: mode=max
           sbom: true
@@ -132,7 +121,7 @@ jobs:
           set -euo pipefail
           node scripts/gitops-images.mjs \
             --file gitops/apps/cloudsentinel/overlays/staging/kustomization.yaml \
-            --registry "${ACR_REGISTRY}/${ACR_NAMESPACE}" \
+            --registry "${ACR_DEPLOY_REGISTRY}/${ACR_NAMESPACE}" \
             --api-digest "${API_DIGEST}" \
             --worker-digest "${WORKER_DIGEST}" \
             --migrate-digest "${MIGRATE_DIGEST}"
@@ -155,4 +144,4 @@ jobs:
             --body "Source: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}. Images are pinned by digest; merging lets Argo CD sync staging."
       - name: Log out of ACR
         if: always()
-        run: docker logout "${ACR_REGISTRY}" || true
+        run: docker logout "${ACR_PUBLIC_REGISTRY}" || true

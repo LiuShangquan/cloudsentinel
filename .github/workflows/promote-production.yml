@@ -2,6 +2,11 @@ name: promote-production
 
 on:
   workflow_dispatch:
+    inputs:
+      confirm_production:
+        description: Type PROMOTE to create the production GitOps PR
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -14,10 +19,19 @@ jobs:
   promote:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    environment: production-approval
     steps:
       - name: Checkout source tools
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - name: Validate production promotion boundary
+        env:
+          CONFIRM_PRODUCTION: ${{ inputs.confirm_production }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ github.repository_owner }}" = "${{ vars.RELEASE_ALLOWED_OWNER }}"
+          test "${{ github.event.repository.name }}" = "${{ vars.RELEASE_ALLOWED_REPOSITORY }}"
+          test "${GITHUB_REF}" = "refs/heads/main"
+          test "${CONFIRM_PRODUCTION}" = "PROMOTE"
       - name: Mint short-lived GitOps repository token
         id: gitops-token
         uses: actions/create-github-app-token@f8d387b68d61c58ab83c6c016672934102569859 # v3.0.0

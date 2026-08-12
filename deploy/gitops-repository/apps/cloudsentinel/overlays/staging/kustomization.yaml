@@ -9,11 +9,11 @@ patches:
   - path: environment-patch.yaml
 images:
   - name: cloudsentinel-api
-    newName: registry.cn-hangzhou.aliyuncs.com/REPLACE_ORG/cloudsentinel-api
+    newName: crpi-1s64ln3ptbvgkqof-vpc.cn-beijing.personal.cr.aliyuncs.com/cloudsentinel0306/cloudsentinel-api
     digest: sha256:REPLACE_API_DIGEST
   - name: cloudsentinel-worker
-    newName: registry.cn-hangzhou.aliyuncs.com/REPLACE_ORG/cloudsentinel-worker
+    newName: crpi-1s64ln3ptbvgkqof-vpc.cn-beijing.personal.cr.aliyuncs.com/cloudsentinel0306/cloudsentinel-worker
     digest: sha256:REPLACE_WORKER_DIGEST
   - name: cloudsentinel-migrate
-    newName: registry.cn-hangzhou.aliyuncs.com/REPLACE_ORG/cloudsentinel-migrate
+    newName: crpi-1s64ln3ptbvgkqof-vpc.cn-beijing.personal.cr.aliyuncs.com/cloudsentinel0306/cloudsentinel-migrate
     digest: sha256:REPLACE_MIGRATE_DIGEST

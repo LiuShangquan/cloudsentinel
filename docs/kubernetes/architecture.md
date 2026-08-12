@@ -4,6 +4,8 @@
 
 目标是为 CloudSentinel 下一阶段准备一个可学习、可演进的单 Kubernetes Cluster。集群基础设施采用 3 Control Plane、4 Worker、stacked etcd、containerd、kubeadm、Calico VXLAN 和 Alibaba Cloud Internal NLB。
 
+当前 ACR 个人版实例固定在华北 2（北京，`cn-beijing`），因此集群、VPC、RDS 与 Tair 的默认地域也固定为北京。若改用其他地域，必须先迁移 Registry 或设计并验证跨地域网络；不得继续引用北京 VPC Registry 域名却把节点采购到杭州。
+
 本文负责集群基础设施设计。CloudSentinel 的 Deployment、Service、ConfigMap、ExternalSecret 引用、Ingress 与 Argo CD 资源已在 `deploy/gitops-repository` 中定义；生产数据库和 Redis 只使用集群外 RDS/Tair，不创建 StatefulSet/PVC。
 
 ## 2. 总体拓扑
@@ -116,6 +118,7 @@ Label 用于选择节点；Taint 用于排斥没有 Toleration 的 Pod。Tolerat
 | Prometheus/Grafana/Alertmanager | 平台监控栈 | `worker-monitor` 或平台规划节点 |
 | MySQL | Alibaba Cloud RDS | 集群外托管服务 |
 | Redis | Alibaba Cloud Tair | 集群外托管服务 |
+| 镜像仓库 | 北京 ACR 个人版，VPC 端点按 digest 拉取 | 集群外托管服务 |
 
 对应 Kustomize 与 Argo CD 资源见 `deploy/gitops-repository`；正式环境参数仍须由平台团队完成替换和审批。
 
@@ -125,6 +128,7 @@ Label 用于选择节点；Taint 用于排斥没有 Toleration 的 Pod。Tolerat
 2. 单 Monitoring Worker 是监控可用性单点，生产应扩展为跨故障域平台监控栈。
 3. stacked etcd 可容忍一个 Member 故障，但仍需 Snapshot 与恢复演练。
 4. API/Worker 通过多副本和拓扑分散降低单节点影响，容量参数需在真实压测后调整。
+5. ACR 个人版无生产 SLA且共享带宽；冷拉取并发应低于 10，必须验证节点缓存、凭证轮换和限流恢复，需求增长后升级企业版或 Harbor。
 
 ## 10. 版本策略
 

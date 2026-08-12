@@ -201,7 +201,7 @@ worker-*                 -> 各自私网 IP
 ## 9. 出站访问与镜像安全
 
 - Node 需要访问 Kubernetes RPM Repository、containerd RPM Repository、目标镜像仓库和 Calico Release 文件，或由内部镜像/制品仓库提供等价内容。
-- 无法访问 `registry.k8s.io` 时，优先将经过 Digest 校验的镜像同步到自己的 Alibaba Cloud ACR。
+- CloudSentinel 业务镜像从 `crpi-1s64ln3ptbvgkqof-vpc.cn-beijing.personal.cr.aliyuncs.com` 按 Digest 拉取；集群必须位于北京地域并验证 DNS、TCP 443 和凭证。无法访问 `registry.k8s.io` 时，优先将经过 Digest 校验的系统镜像同步到自己的受控仓库。
 - 不推荐来源不明的公共 Mirror，也不在文档中写入临时 Mirror 地址。
 - ACR Credential、SSH Key、Token、Certificate Key 和 Kubeconfig 不得写入 Git 或 Inventory Template。
 
@@ -231,4 +231,3 @@ firewall-cmd --version
 ```
 
 确认 containerd RPM 和 Kubernetes RPM 明确支持 EL10；确认 Calico 支持当前内核；确认 Version Lock Plugin 的 DNF5 命令。不要把 Stream 9 的 RPM URL、Plugin Package Name 或 firewalld 行为直接视为 Stream 10 已验证。
-

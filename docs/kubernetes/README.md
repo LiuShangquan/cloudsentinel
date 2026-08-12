@@ -10,6 +10,7 @@
 - containerd 作为 CRI Runtime。
 - Calico VXLAN，禁用 BGP，启用 Kubernetes NetworkPolicy。
 - Alibaba Cloud Internal NLB 为 kube-apiserver 提供统一的 `ControlPlaneEndpoint`。
+- 集群默认地域固定为华北 2（北京，`cn-beijing`），与当前 ACR 个人版实例一致。
 - `ops-storage` 作为集群外运维入口、备份和 NFS 学习节点，不加入 Kubernetes。
 
 ## 节点数量与职责
@@ -49,13 +50,13 @@
 
 ## 部署前必须准备的信息
 
-- 阿里云 Region、VPC ID、VPC CIDR、各 VSwitch ID/CIDR 和可用区。
+- 阿里云 Region（当前为 `cn-beijing`）、VPC ID、VPC CIDR、各 VSwitch ID/CIDR 和可用区。
 - 7 个 Kubernetes ECS 的私网 IP，以及 `ops-storage` 私网 IP。
 - Internal NLB 私网 DNS 或私网 IP，以及监听器/服务器组信息。
 - 管理源 IP 或 `ops-storage` Security Group。
 - 不重叠的 Pod CIDR 与 Service CIDR。
 - 经兼容性确认的 Kubernetes Minor/Patch、containerd 和 Calico 版本。
-- 可信镜像来源；无法访问 `registry.k8s.io` 时，应准备自己的 Alibaba Cloud ACR。
+- 可信镜像来源；CloudSentinel 业务镜像使用北京 ACR 个人版 VPC 端点，系统组件镜像无法访问 `registry.k8s.io` 时应按 digest 同步到受控仓库。
 - 备份位置、etcd 备份策略、SSH 管理方式和变更窗口。
 
 ## 重要边界
@@ -63,4 +64,5 @@
 - `worker-data-01` 是单点，不用于 CloudSentinel 生产数据。
 - CloudSentinel 生产统一使用 Alibaba Cloud RDS 和 Tair，不保留集群内数据库 StatefulSet 选项。
 - 平台控制器由平台仓库维护；应用 GitOps 仓库只管理 CloudSentinel 的 Namespace 级资源。
+- ACR 个人版固定凭证只进入 GitHub Repository Secrets 和集群密钥后端，不进入 Inventory 或 Git。
 - 本基础设施手册不会自动执行部署；实际应用期望状态以独立 GitOps 仓库为准。

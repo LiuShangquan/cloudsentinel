@@ -35,5 +35,11 @@ jobs:
               exit 1
             fi
             grep -Eq 'image: .+@sha256:[0-9a-f]{64}$' "${output}"
+            image_count="$(grep -Ec 'image: crpi-1s64ln3ptbvgkqof-vpc\.cn-beijing\.personal\.cr\.aliyuncs\.com/cloudsentinel0306/cloudsentinel-(api|worker|migrate)@sha256:[0-9a-f]{64}$' "${output}")"
+            test "${image_count}" -eq 3
           done
+          if grep -RIn 'newName: crpi-1s64ln3ptbvgkqof\.cn-beijing\.personal\.cr\.aliyuncs\.com' apps; then
+            echo 'workloads must use the ACR VPC endpoint, not the public push endpoint.' >&2
+            exit 1
+          fi
           kubectl kustomize bootstrap/argocd >/dev/null

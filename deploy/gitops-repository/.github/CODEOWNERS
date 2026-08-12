@@ -1,4 +1,4 @@
-* @REPLACE_ORG/platform-team
-/apps/cloudsentinel/overlays/production/ @REPLACE_ORG/platform-team @REPLACE_ORG/cloudsentinel-owners
-/platform/cloudsentinel-secrets/overlays/production/ @REPLACE_ORG/platform-team @REPLACE_ORG/cloudsentinel-owners
-/bootstrap/ @REPLACE_ORG/platform-team
+* @LiuShangquan
+/apps/cloudsentinel/overlays/production/ @LiuShangquan
+/platform/cloudsentinel-secrets/overlays/production/ @LiuShangquan
+/bootstrap/ @LiuShangquan

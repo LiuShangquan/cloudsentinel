@@ -24,7 +24,7 @@ spec:
     spec:
       project: cloudsentinel
       source:
-        repoURL: https://github.com/REPLACE_ORG/cloudsentinel-gitops.git
+        repoURL: https://github.com/LiuShangquan/cloudsentinel-gitops.git
         targetRevision: main
         path: apps/cloudsentinel/overlays/{{.environment}}
       destination:

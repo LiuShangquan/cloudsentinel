@@ -12,13 +12,14 @@
 - Kustomize Base、Staging/Production Overlay、Ingress、PDB、HPA、NetworkPolicy。
 - 外部 RDS/Tair、ExternalSecret、PreSync Migration Job。
 - Argo CD AppProject/ApplicationSet 和独立 GitOps 仓库。
-- GitHub Actions OIDC 发布、SBOM/Provenance、digest 晋级与环境审批。
+- GitHub Actions 发布到北京 ACR 个人版、SBOM/Provenance、digest 晋级与环境审批。
 - 中文生产操作、回滚、恢复、安全与故障排查文档。
 
 ## 后续演进
 
 - 真实环境容量压测后调整副本、连接池、资源与 HPA。
 - 接入组织统一策略引擎、镜像签名验证和集中 Secret Backend。
+- 当个人版 SLA、限流或凭证隔离不再满足需求时，迁移到 ACR 企业版或企业维护的 Harbor。
 - 基于 Redis backlog/探测延迟的 Worker 自定义指标扩缩容。
 - 跨可用区监控栈、长期指标存储及正式 SLO/错误预算。
 

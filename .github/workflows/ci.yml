@@ -59,5 +59,7 @@ jobs:
             fi
             grep -q 'kind: Deployment' "${output}"
             grep -q 'argocd.argoproj.io/hook: PreSync' "${output}"
+            image_count="$(grep -Ec 'image: crpi-1s64ln3ptbvgkqof-vpc\.cn-beijing\.personal\.cr\.aliyuncs\.com/cloudsentinel0306/cloudsentinel-(api|worker|migrate)@sha256:' "${output}")"
+            test "${image_count}" -eq 3
           done
           kubectl kustomize deploy/gitops-repository/bootstrap/argocd >/dev/null

@@ -1,5 +1,6 @@
 cluster:
   name: cloudsentinel-k8s
+  region: "cn-beijing"
 
   control_plane_endpoint: "<NLB_PRIVATE_IP_OR_DNS>:6443"
 
@@ -10,6 +11,11 @@ cluster:
   kubernetes_version: "<KUBERNETES_VERSION>"
   containerd_version: "<CONTAINERD_VERSION>"
   calico_version: "<CALICO_VERSION>"
+
+registry:
+  public_push_endpoint: "crpi-1s64ln3ptbvgkqof.cn-beijing.personal.cr.aliyuncs.com"
+  vpc_pull_endpoint: "crpi-1s64ln3ptbvgkqof-vpc.cn-beijing.personal.cr.aliyuncs.com"
+  namespace: "cloudsentinel0306"
 
 nodes:
   control_plane:
@@ -43,4 +49,3 @@ external_nodes:
   - name: ops-storage
     private_ip: "<OPS_STORAGE_PRIVATE_IP>"
     join_kubernetes: false
-

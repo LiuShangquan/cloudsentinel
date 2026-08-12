@@ -6,9 +6,9 @@
 - 生产运行 CloudSentinel API 与 Worker；MySQL、Redis 分别使用集群外托管 RDS、Tair，不提供数据库 StatefulSet 备选路径。
 - 应用源码仓库负责代码、镜像构建与 CI；独立 GitOps 配置仓库负责环境期望状态，Argo CD 只读取配置仓库。
 - GitHub Actions 只构建、扫描、推送不可变镜像并创建 GitOps 变更 PR；不得直接持有集群管理员凭证或执行 `kubectl apply`。
-- Staging 在受保护 PR 合并后自动同步；Production 通过受保护环境审批和独立晋级 PR，合并后由 Argo CD 同步。
+- Staging 在 GitOps PR 合并后自动同步；Production 通过显式手工确认、独立晋级 PR 和 Argo CD 手工同步完成门禁。GitHub Free 私有仓库不依赖付费 Environment 审批。
 - 数据库 Migration 是 Argo CD PreSync Hook，成功后才能更新 API/Worker。
-- Secret 只通过 ExternalSecret 契约引用；Git 中不保存 Secret、云访问密钥或完整数据库 URL。
+- Secret 只通过 ExternalSecret 契约引用；Git 中不保存 Secret、云访问密钥、Registry 密码或完整数据库 URL。
 
 ## Phase G0 - 边界、计划与事实来源
 
@@ -43,8 +43,8 @@
 ## Phase G5 - GitHub Actions 供应链与晋级
 
 - 状态：PASS
-- 交付：Go/清单 CI，阿里云 OIDC 镜像发布，BuildKit SBOM/Provenance，Staging GitOps PR，Production 晋级 PR。
-- 完成条件：工作流最小权限；不使用长期云 AK；不直接连接 Kubernetes API；镜像按 digest 晋级。
+- 交付：Go/清单 CI，北京 ACR 个人版镜像发布，BuildKit SBOM/Provenance，Staging GitOps PR，Production 晋级 PR。
+- 完成条件：工作流不使用云 AccessKey；个人版固定 Registry 凭证仅存在于 GitHub Repository Secrets；不直接连接 Kubernetes API；镜像按 digest 晋级。
 
 ## Phase G6 - 企业运行文档
 
@@ -68,3 +68,9 @@
 - PASS：actionlint v1.7.8 检查源码仓库与 GitOps 种子中的全部 GitHub Actions 工作流。
 - NOT VERIFIED：Docker 守护进程未运行，API/Worker/Migration 镜像未做本轮实际构建。
 - NOT VERIFIED：没有连接真实 Kubernetes、Argo CD、GitHub 组织、ACR、RDS、Tair、DNS、Ingress、cert-manager 或 External Secrets 后端，未产生任何实际部署结果。
+
+## ACR 个人版修订（2026-08-12）
+
+- 企业版 OIDC/临时 Token 方案因成本调整为北京 ACR 个人版固定 Registry 凭证，实施与验收标准见 `002-acr-personal-edition-migration.md`。
+- 个人版无 SLA、共享限流和固定凭证风险是已知边界，不改变 digest 晋级、GitOps 分仓或 Argo CD 拉取模型。
+- GitHub Free 私有仓库不支持 Environment Secrets、Required Reviewers 或受保护分支；零额外套餐成本基线使用 Repository Secrets、显式 `PROMOTE` 确认、PR 留痕和 Production Argo CD 手工同步。升级 GitHub Pro 后可再启用私有分支保护，但私有环境 Required Reviewers 仍不作为当前基线。

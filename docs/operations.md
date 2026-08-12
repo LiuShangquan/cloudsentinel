@@ -13,6 +13,8 @@ kubectl -n cloudsentinel-production get events --sort-by=.lastTimestamp
 
 应用健康标准：API/Worker Desired=Available；Readiness 为 200；没有长期 Pending Stream；最新 Probe 持续产生；Alertmanager Webhook 无认证失败；RDS/Tair 连接池和延迟未触发告警。
 
+镜像分发基线使用北京 ACR 个人版。发布从公网端点推送，集群从 VPC 端点拉取；不要把公网地址写入工作负载。个人版共享带宽可能限流，发布时避免同时重建超过 10 个需要冷拉取镜像的 Pod，并保留 `IfNotPresent` 节点缓存。出现 `TOOMANYREQUESTS` 时应暂停继续滚动、保留健康副本并降低并发，不得切换到来源不明的镜像站。
+
 容量评审必须计算所有副本的连接上限：Production API HPA 最大 8 副本，Worker 固定 3 副本；按当前每进程 15 个 MySQL 连接计算，上界为 165，再加 Migration 与运维连接。只有 RDS `max_connections`、代理层和压测结果能够承受该上界时才保留此参数，否则应在 GitOps ConfigMap 中下调。
 
 ## Migration 规则
@@ -47,5 +49,6 @@ RDS 恢复后检查：Migration 版本、业务表行数抽样、用户登录、
 - RDS 不可用：API/Worker Readiness 应失败；不要通过修改探针强行接流量。
 - Tair 不可用：调度消息暂时无法发布；RDS 中 Queued Execution 是恢复依据。
 - Secret 泄露：先在源系统轮换，确认 ExternalSecret 已刷新，再重启受影响 Deployment；随后吊销旧值并完成审计。
+- ACR 凭证泄露：先在 ACR 控制台重置固定密码，再更新 GitHub Repository Secret `ACR_PASSWORD` 和密钥后端中的 `.dockerconfigjson`，确认 Staging 能推送/拉取后再滚动 Production。轮换期间不要把密码放到命令历史、工单或 Git。
 
 删除 Namespace、Argo Application、RDS/Tair 实例、PVC/备份或执行数据库 Down/PITR 都是破坏性操作，本手册不提供可直接复制执行的删除命令。操作者必须单独确认精确目标、备份、审批和回退路径。
