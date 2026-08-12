@@ -36,7 +36,7 @@
 
 ## Phase L3 - 供应链与文档
 
-- 新增手工工作流，将固定版本 MySQL/Redis 镜像镜像到北京 ACR 个人版。
+- 新增手工工作流，将固定版本 MySQL/Redis 的 `linux/amd64` 镜像同步到北京 ACR 个人版，并直接采用 Registry Push 返回的 digest。
 - 更新架构、GitOps、数据库、Kubernetes、运维、恢复和路线图文档。
 - 明确单节点故障、Local PV 绑定、无 TLS Lab 例外及升级/恢复操作。
 

@@ -73,7 +73,7 @@ Registry 远端对象提供完整 `.dockerconfigjson`，其中认证服务器必
 
 ## 5. 正常发布
 
-首次业务发布前，先在 ACR 控制台创建 `cloudsentinel-mysql` 和 `cloudsentinel-redis` 两个私有仓库，再从源码仓库 `main` 手工运行 `mirror-lab-data-images`。它把固定上游版本镜像同步到 ACR，并在实际 ACR digest 与 GitOps 不一致时创建数据镜像 PR。数据层健康后再开始下面的业务镜像发布。
+首次业务发布前，先在 ACR 控制台创建 `cloudsentinel-mysql` 和 `cloudsentinel-redis` 两个私有仓库，再从源码仓库 `main` 手工运行 `mirror-lab-data-images`。它只同步当前 x86 ECS 需要的 `linux/amd64` 固定上游版本，直接采用 ACR Push 返回的 digest，并在该 digest 与 GitOps 不一致时创建数据镜像 PR。数据层健康后再开始下面的业务镜像发布。
 
 1. Source PR 通过格式化、Vet、单测、构建和 Kustomize Render。
 2. 合并 `main` 触发 `release-images-and-stage`；GitHub 托管 Runner 使用 Repository Secrets 中的固定凭证登录 ACR 个人版公网端点，BuildKit 推送三个带 SBOM/Provenance 的镜像。同一分支重复触发时只保留最新运行，旧的排队或执行中发布会被取消；镜像标签不可变，只有三个构建全部成功后才创建 GitOps PR。
