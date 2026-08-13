@@ -1,0 +1,101 @@
+name: mirror-calico-images
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudsentinel-calico-image-mirror
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      ACR_PUBLIC_REGISTRY: crpi-1s64ln3ptbvgkqof.cn-beijing.personal.cr.aliyuncs.com
+      ACR_NAMESPACE: cloudsentinel0306
+      CALICO_VERSION: v3.32.1
+      TIGERA_OPERATOR_VERSION: v1.42.3
+    steps:
+      - name: Checkout source repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - name: Validate mirror boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ github.repository_owner }}" = "${{ vars.RELEASE_ALLOWED_OWNER }}"
+          test "${{ github.event.repository.name }}" = "${{ vars.RELEASE_ALLOWED_REPOSITORY }}"
+          test "${GITHUB_REF}" = "refs/heads/main"
+          test "${CALICO_VERSION}" = "v3.32.1"
+          test "${TIGERA_OPERATOR_VERSION}" = "v1.42.3"
+          docker version
+
+      - name: Log in to ACR Personal Edition
+        env:
+          ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
+          ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${ACR_USERNAME}"
+          test -n "${ACR_PASSWORD}"
+          printf '%s' "${ACR_PASSWORD}" |
+            docker login "${ACR_PUBLIC_REGISTRY}" \
+              --username "${ACR_USERNAME}" \
+              --password-stdin
+
+      - name: Mirror pinned Calico images for linux amd64
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # ACR Personal Edition repositories are flat under a namespace. The
+          # Installation resource uses imagePath=cloudsentinel0306 and
+          # imagePrefix=calico- to map Calico component names to these targets.
+          mappings=(
+            'quay.io/tigera/operator:v1.42.3|calico-operator:v1.42.3'
+            'quay.io/calico/node:v3.32.1|calico-node:v3.32.1'
+            'quay.io/calico/cni:v3.32.1|calico-cni:v3.32.1'
+            'quay.io/calico/kube-controllers:v3.32.1|calico-kube-controllers:v3.32.1'
+            'quay.io/calico/typha:v3.32.1|calico-typha:v3.32.1'
+            'quay.io/calico/csi:v3.32.1|calico-csi:v3.32.1'
+            'quay.io/calico/node-driver-registrar:v3.32.1|calico-node-driver-registrar:v3.32.1'
+            'quay.io/calico/pod2daemon-flexvol:v3.32.1|calico-pod2daemon-flexvol:v3.32.1'
+            'quay.io/calico/key-cert-provisioner:v3.32.1|calico-key-cert-provisioner:v3.32.1'
+          )
+
+          {
+            echo '## Mirrored Calico images'
+            echo
+            echo '| Source | Target | Digest |'
+            echo '|---|---|---|'
+          } >>"${GITHUB_STEP_SUMMARY}"
+
+          for mapping in "${mappings[@]}"; do
+            source="${mapping%%|*}"
+            target_name="${mapping#*|}"
+            target="${ACR_PUBLIC_REGISTRY}/${ACR_NAMESPACE}/${target_name}"
+
+            docker pull --platform linux/amd64 "${source}"
+            platform="$(docker image inspect \
+              --format '{{.Os}}/{{.Architecture}}' "${source}")"
+            test "${platform}" = 'linux/amd64'
+
+            docker tag "${source}" "${target}"
+            push_output="$(docker push "${target}" 2>&1 | tee /dev/stderr)"
+            digest="$(printf '%s\n' "${push_output}" |
+              sed -nE 's/.*digest: (sha256:[0-9a-f]{64}).*/\1/p' |
+              tail -n 1)"
+            [[ "${digest}" =~ ^sha256:[0-9a-f]{64}$ ]]
+            printf '| `%s` | `%s` | `%s` |\n' \
+              "${source}" "${target}" "${digest}" \
+              >>"${GITHUB_STEP_SUMMARY}"
+          done
+
+      - name: Log out of ACR
+        if: always()
+        run: docker logout "${ACR_PUBLIC_REGISTRY}" || true

@@ -26,7 +26,7 @@
 ## 技术基线
 
 - OS：Alibaba Cloud Linux 4 LTS 64 位普通版，Linux 6.6 LTS，统一 cgroup v2。
-- 当前八台 ECS 已完成镜像更换并全部通过只读预检；7 个 Kubernetes 节点也已完成 containerd、kubeadm、kubelet、kubectl、cri-tools 与 CNI Plugins 基础安装验收。`ops-storage` 保持集群外角色。
+- 当前八台 ECS 已完成操作系统镜像更换并全部通过只读预检；7 个 Kubernetes 节点也已完成 containerd、kubeadm、kubelet、kubectl、cri-tools 与 CNI Plugins 基础安装验收，并已从 ACR VPC 端点预拉固定 kubeadm 镜像、对齐 containerd Pause 镜像。`ops-storage` 保持集群外角色，不执行 Kubernetes 镜像准备脚本。
 - 当前实验集群已冻结 Kubernetes `v1.35.7`、containerd `1.7.34` 与 Calico `v3.32.1`；不得把这些版本描述为长期自动跟随的“最新版本”。
 - Pod 网络：Calico VXLAN，UDP 4789 只允许 Kubernetes 节点之间通信。
 
@@ -51,6 +51,9 @@
 | `inventory.example.yaml` | 不含 Secret 的环境变量与节点信息模板 |
 | `inventory.lab.yaml` | 当前 8 台 ECS 的私网地址、角色、容量和部署阻断项；不记录公网地址或 Secret |
 | `preflight-alinux4.sh` | Alibaba Cloud Linux 4 八节点只读体检；不安装软件、不加载模块、不修改系统 |
+| `prepare-kubernetes-images-alinux4.sh` | 在 7 个 Kubernetes 节点从 ACR VPC 端点预拉固定 kubeadm 镜像，并对齐 containerd Pause 镜像；不执行 init/join |
+| `prepare-calico-images-alinux4.sh` | 在 7 个 Kubernetes 节点从 ACR VPC 端点预拉固定 Calico Linux 镜像；不执行 init/join 或安装 CNI |
+| `mirror-calico-images.yml` | GitHub Actions 手工工作流：将固定 Calico Linux/amd64 镜像同步到 ACR 个人版扁平仓库 |
 | `preflight-centos7.sh` | 已停用的 CentOS 7 历史体检脚本，仅保留审计上下文，不再用于当前集群 |
 
 ## 部署前必须准备的信息
@@ -68,7 +71,7 @@
 
 - `worker-data-01` 是学生练习数据层单点；节点或本地盘故障会同时影响 MySQL、Redis 和同盘备份。
 - 当前实购的 Control Plane、Monitoring、Data 与运维节点均只有 2 GiB 内存，属于练习环境最低边缘容量：监控必须使用短保留期和低资源配置，不能直接套用企业默认值；数据层也已降低 MySQL/Redis 内存参数，并必须观察 Node MemoryPressure 与容器 OOM。
-- 当前所有节点已更换为 Alibaba Cloud Linux 4 LTS 64 位普通版；CIDR、Internal NLB、组件版本与 7 节点 Runtime 基线均已冻结并完成实测。`registry.k8s.io` 经 Google Artifact Registry 重定向后从北京节点访问超时，当前阻断项为安全组收敛、Kubernetes 固定镜像同步到 ACR，以及同步后的 VPC 拉取验证。
+- 当前所有节点已更换为 Alibaba Cloud Linux 4 LTS 64 位普通版；CIDR、Internal NLB、组件版本与 7 节点 Runtime 基线均已冻结并完成实测。`registry.k8s.io` 经 Google Artifact Registry 重定向后从北京节点访问超时，因此固定 kubeadm 镜像已同步到 ACR，并在全部 7 个 Kubernetes 节点完成 VPC 拉取验证。进入建群前仍需完成安全组收敛；安装 CNI 前还需同步并验证固定 Calico 镜像。
 - 企业生产仍统一使用 Alibaba Cloud RDS 和 Tair；本次 StatefulSet 只属于 `lab-*` Overlay，不构成生产高可用方案。
 - 平台控制器由平台仓库维护；应用 GitOps 仓库只管理 CloudSentinel 的 Namespace 级资源。
 - ACR 个人版固定凭证只进入 GitHub Repository Secrets 和集群密钥后端，不进入 Inventory 或 Git。

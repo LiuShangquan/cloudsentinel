@@ -762,6 +762,38 @@ sha256sum calico-crds.yaml tigera-operator.yaml
 
 Checksum 应与组织审批记录或自行建立的可信制品清单比较，不能只记录后继续。
 
+当前北京实验集群无法稳定访问外部容器仓库，必须先执行
+`.github/workflows/mirror-calico-images.yml`，将固定的 Linux/amd64 镜像同步到
+ACR 个人版。个人版仓库在 Namespace 下采用扁平仓库名，因此需要预先创建以下
+公开仓库：
+
+```text
+calico-operator
+calico-node
+calico-cni
+calico-kube-controllers
+calico-typha
+calico-csi
+calico-node-driver-registrar
+calico-pod2daemon-flexvol
+calico-key-cert-provisioner
+```
+
+这些仓库只承载固定的官方系统镜像，不得上传 Secret 或业务数据。工作流成功后，
+在 7 个 Kubernetes 节点逐台执行 `prepare-calico-images-alinux4.sh`，并确认每台均返回
+`CALICO_IMAGE_PREPARE_RESULT=PASS`。`ops-storage` 不加入集群，禁止执行该脚本。
+
+工作流成功后，
+将 `tigera-operator.yaml` 中唯一的 Operator 镜像替换为：
+
+```text
+crpi-1s64ln3ptbvgkqof-vpc.cn-beijing.personal.cr.aliyuncs.com/cloudsentinel0306/calico-operator:v1.42.3
+```
+
+替换后必须用 `grep -n 'image:' tigera-operator.yaml` 确认 Manifest 中不再引用
+`quay.io`。ACR 仓库当前为公开拉取，因此不在集群创建固定 Registry Secret；若以后
+切换为私有仓库，必须在 `tigera-operator` Namespace 配置专用 ImagePullSecret。
+
 **创建 `calico-installation.yaml`**：
 
 ```yaml
@@ -771,6 +803,9 @@ metadata:
   name: default
 spec:
   variant: Calico
+  registry: crpi-1s64ln3ptbvgkqof-vpc.cn-beijing.personal.cr.aliyuncs.com/
+  imagePath: cloudsentinel0306
+  imagePrefix: calico-
   calicoNetwork:
     bgp: Disabled
     ipPools:

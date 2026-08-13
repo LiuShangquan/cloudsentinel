@@ -29,6 +29,7 @@
 - 已确认上述交换机分别位于北京可用区 K 和 G；空闲交换机 `vsw-2zeq56omjune5xz62fxz8`（`172.18.144.0/20`）位于北京可用区 H。三者绑定默认系统路由表 `vtb-2zeiq8wdyy5irqr1kstph`。
 - Pod/Service CIDR 采用 `10.244.0.0/16` 与 `10.96.0.0/12`，二者相互不重叠且不与 VPC CIDR 重叠；仍需确认 VPC 自定义路由、VPN/CEN 和管理网络没有使用这些地址段。
 - 默认路由表已于 2026-08-13 完成截图核验，仅包含三个 VSwitch 系统路由和 `100.64.0.0/10` 系统网段；未发现与 Pod/Service CIDR 冲突的自定义、VPN 或 CEN 路由。
-- 下一阶段阻断项为两个交换机的可用区、Internal NLB Endpoint，以及 containerd/Kubernetes/Calico 完整版本冻结。
-- containerd、Kubernetes、Calico 和 Internal NLB 仍未冻结，集群保持 `deployment_ready: false`。
-- 私网 NLB `nlb-axdxf21jombh758m09` 已创建，稳定入口冻结为 `nlb-axdxf21jombh758m09.cn-beijing.nlb.aliyuncsslb.com:6443`；G/K 两区 VIP 分别为 `172.29.253.156` 与 `172.16.41.184`。TCP 6443 监听和三 Master 后端服务器组仍待配置。
+- 私网 NLB `nlb-axdxf21jombh758m09` 已创建，稳定入口冻结为 `nlb-axdxf21jombh758m09.cn-beijing.nlb.aliyuncsslb.com:6443`；G/K 两区 VIP 分别为 `172.29.253.156` 与 `172.16.41.184`。TCP 6443 监听已运行，三台 Master 已加入后端服务器组；API Server 尚未初始化时健康检查异常属于预期状态。
+- 已冻结 Kubernetes `v1.35.7`、containerd `1.7.34` 与 Calico `v3.32.1`。7 个 Kubernetes 节点均已完成 Runtime/Kubernetes RPM 基线验收，containerd 使用 `SystemdCgroup = true` 且 CRI v1 可用；`ops-storage` 不加入 Kubernetes。
+- `registry.k8s.io` 从北京节点访问超时；固定 kubeadm 镜像已同步到 ACR 个人版，并于 2026-08-13 在全部 7 个 Kubernetes 节点通过 ACR VPC 端点完成预拉和 containerd Pause 镜像对齐。
+- 当前仍保持 `deployment_ready: false`。执行 `kubeadm init` 前必须确认公网放通规则已经收敛并完成私网 Kubernetes/Calico 规则验收；安装 CNI 前还必须同步和验证固定 Calico 镜像。

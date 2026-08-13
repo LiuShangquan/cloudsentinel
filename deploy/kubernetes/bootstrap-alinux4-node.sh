@@ -14,7 +14,8 @@ readonly CONTAINERD_RPM_VERSION="1.7.34-1.alnx4"
 readonly CRI_TOOLS_RPM_VERSION="1.35.0-150500.1.1"
 readonly CNI_PLUGINS_RPM_VERSION="1.3.0-2.alnx4"
 readonly NLB_HOST="nlb-axdxf21jombh758m09.cn-beijing.nlb.aliyuncsslb.com"
-readonly SCRIPT_REVISION="2026-08-13.4"
+readonly ACR_IMAGE_REPOSITORY="crpi-1s64ln3ptbvgkqof-vpc.cn-beijing.personal.cr.aliyuncs.com/cloudsentinel0306"
+readonly SCRIPT_REVISION="2026-08-13.5"
 
 apply=false
 expected_hostname=""
@@ -282,7 +283,9 @@ installed_cni_plugins="$(rpm -q --qf '%{VERSION}-%{RELEASE}' containernetworking
 
 section "align containerd sandbox image"
 pause_image="$(
-  kubeadm config images list --kubernetes-version "${KUBERNETES_VERSION}" |
+  kubeadm config images list \
+    --kubernetes-version "${KUBERNETES_VERSION}" \
+    --image-repository "${ACR_IMAGE_REPOSITORY}" |
     awk '/pause/{print; exit}'
 )"
 [[ -n "${pause_image}" ]] || die "kubeadm did not report a pause image"
