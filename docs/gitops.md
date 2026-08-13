@@ -76,7 +76,7 @@ Registry 远端对象提供完整 `.dockerconfigjson`，其中认证服务器必
 首次业务发布前，先在 ACR 控制台创建 `cloudsentinel-mysql` 和 `cloudsentinel-redis` 两个私有仓库，再从源码仓库 `main` 手工运行 `mirror-lab-data-images`。它只同步当前 x86 ECS 需要的 `linux/amd64` 固定上游版本，直接采用 ACR Push 返回的 digest，并在该 digest 与 GitOps 不一致时创建数据镜像 PR。数据层健康后再开始下面的业务镜像发布。
 
 1. Source PR 通过格式化、Vet、单测、构建和 Kustomize Render。
-2. 合并 `main` 触发 `release-images-and-stage`；GitHub 托管 Runner 使用 Repository Secrets 中的固定凭证登录 ACR 个人版公网端点，BuildKit 推送三个带 SBOM/Provenance 的镜像。同一分支重复触发时只保留最新运行，旧的排队或执行中发布会被取消；镜像标签不可变，只有三个构建全部成功后才创建 GitOps PR。
+2. 合并 `main` 触发 `release-images-and-stage`；GitHub 托管 Runner 使用 Repository Secrets 中的固定凭证登录 ACR 个人版公网端点，BuildKit 推送三个固定 `linux/amd64` 镜像。同一分支重复触发时只保留最新运行，旧的排队或执行中发布会被取消；镜像标签不可变，只有三个构建全部成功后才创建 GitOps PR。当前 ACR 个人版实测拒绝 BuildKit 附着式 SBOM/Provenance 使用的 OCI Attestation Manifest（`application/vnd.oci.empty.v1+json`），因此发布工作流显式设置 `provenance: false` 与 `sbom: false`；镜像仍按 Registry 返回的不可变 Digest 晋级，但这不等价于完整供应链证明。SBOM/Provenance 必须在独立 Artifact 流程实现，或在迁移到支持 OCI Referrers/Attestations 的 Registry 后重新附着。
 3. 工作流取得每个镜像 digest，把镜像名称转换为同实例的北京 VPC 端点并创建 Staging GitOps PR。审核并合并后 Argo CD 自动运行 Migration，再滚动 API/Worker。
 4. 验证 Staging Migration、Pod Ready、`/readyz`、Probe 结果、Incident Webhook、错误率和延迟。
 5. 从源码仓库 `main` 手工触发 `promote-production` 并输入 `PROMOTE`。工作流把 Staging 的完全相同 digest 复制到 Production 并创建 PR；至少由另一名负责人审阅，但 GitHub Free 私有仓库不会强制该审批。

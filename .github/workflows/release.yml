@@ -62,8 +62,12 @@ jobs:
           push: true
           tags: ${{ env.ACR_PUBLIC_REGISTRY }}/${{ env.ACR_NAMESPACE }}/cloudsentinel-api:${{ github.sha }}
           platforms: linux/amd64
-          provenance: mode=max
-          sbom: true
+          # ACR Personal Edition rejects BuildKit's attached OCI attestation
+          # manifests. Keep the runnable image and immutable digest publishable;
+          # generate supply-chain evidence out-of-band until the registry is
+          # upgraded to one that supports OCI referrers/attestations.
+          provenance: false
+          sbom: false
           cache-from: type=gha,scope=cloudsentinel-api
           cache-to: type=gha,mode=max,scope=cloudsentinel-api
       - name: Build and push Worker
@@ -76,8 +80,8 @@ jobs:
           push: true
           tags: ${{ env.ACR_PUBLIC_REGISTRY }}/${{ env.ACR_NAMESPACE }}/cloudsentinel-worker:${{ github.sha }}
           platforms: linux/amd64
-          provenance: mode=max
-          sbom: true
+          provenance: false
+          sbom: false
           cache-from: type=gha,scope=cloudsentinel-worker
           cache-to: type=gha,mode=max,scope=cloudsentinel-worker
       - name: Build and push Migration
@@ -89,8 +93,8 @@ jobs:
           push: true
           tags: ${{ env.ACR_PUBLIC_REGISTRY }}/${{ env.ACR_NAMESPACE }}/cloudsentinel-migrate:${{ github.sha }}
           platforms: linux/amd64
-          provenance: mode=max
-          sbom: true
+          provenance: false
+          sbom: false
           cache-from: type=gha,scope=cloudsentinel-migrate
           cache-to: type=gha,mode=max,scope=cloudsentinel-migrate
       - name: Mint short-lived GitOps repository token

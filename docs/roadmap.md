@@ -12,7 +12,7 @@
 - Kustomize Base、Staging/Production Overlay、Ingress、PDB、HPA、NetworkPolicy。
 - 企业环境外部 RDS/Tair，以及学生实验环境单副本 StatefulSet；两者均使用 ExternalSecret 与 PreSync Migration Job。
 - Argo CD AppProject/ApplicationSet 和独立 GitOps 仓库。
-- GitHub Actions 发布到北京 ACR 个人版、SBOM/Provenance、digest 晋级与环境审批。
+- GitHub Actions 发布到北京 ACR 个人版并按 Digest 晋级；由于当前个人版不接受 BuildKit OCI Attestation Manifest，SBOM/Provenance 改为后续独立 Artifact 流程，或在迁移到支持 OCI Referrers/Attestations 的 Registry 后恢复附着。
 - 中文生产操作、回滚、恢复、安全与故障排查文档。
 
 ## 后续演进

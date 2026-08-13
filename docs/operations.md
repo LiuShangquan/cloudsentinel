@@ -16,6 +16,8 @@ kubectl -n cloudsentinel-production get events --sort-by=.lastTimestamp
 
 镜像分发基线使用北京 ACR 个人版。发布从公网端点推送，集群从 VPC 端点拉取；不要把公网地址写入工作负载。个人版共享带宽可能限流，发布时避免同时重建超过 10 个需要冷拉取镜像的 Pod，并保留 `IfNotPresent` 节点缓存。出现 `TOOMANYREQUESTS` 时应暂停继续滚动、保留健康副本并降低并发，不得切换到来源不明的镜像站。
 
+当前 ACR 个人版实测拒绝 BuildKit 附着式 SBOM/Provenance 的 OCI Attestation Manifest。业务发布工作流因此只推送可运行镜像并记录不可变 Digest，显式关闭附着式 `sbom` 与 `provenance`。这属于 Registry 兼容性折中，不得表述为已具备完整供应链证明；后续应把 SBOM/Provenance 作为独立、可留存和可验证的 CI Artifact，或迁移到支持 OCI Referrers/Attestations 的 Registry。
+
 学生 Overlay 将 API/Worker 每进程 MySQL 上限降为 8，Production API HPA 为 3–4 副本、Worker 固定 3 副本。Staging 各 2 副本时，运行时理论上界为 88 个连接，再加 Migration、Bootstrap、备份和运维连接；MySQL 配置上限为 100，因此不要继续提高副本或连接池。正式压测前应进一步检查实际连接峰值。
 
 ## Migration 规则
