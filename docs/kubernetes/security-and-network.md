@@ -147,7 +147,7 @@ sudo firewall-cmd --list-all
 
 ## 6. SELinux 策略
 
-CentOS Stream 9 基线采用 `permissive`，而不是删除 SELinux：
+当前 Alibaba Cloud Linux 4 学习基线计划先采用 `permissive`，而不是删除 SELinux；执行前仍需确认当前镜像的默认状态并保留审计证据：
 
 ```bash
 getenforce

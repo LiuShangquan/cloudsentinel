@@ -1,0 +1,93 @@
+name: mirror-kubernetes-images
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudsentinel-kubernetes-image-mirror
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      ACR_PUBLIC_REGISTRY: crpi-1s64ln3ptbvgkqof.cn-beijing.personal.cr.aliyuncs.com
+      ACR_NAMESPACE: cloudsentinel0306
+      KUBERNETES_VERSION: v1.35.7
+    steps:
+      - name: Checkout source repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - name: Validate mirror boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ github.repository_owner }}" = "${{ vars.RELEASE_ALLOWED_OWNER }}"
+          test "${{ github.event.repository.name }}" = "${{ vars.RELEASE_ALLOWED_REPOSITORY }}"
+          test "${GITHUB_REF}" = "refs/heads/main"
+          test "${KUBERNETES_VERSION}" = "v1.35.7"
+          docker version
+
+      - name: Log in to ACR Personal Edition
+        env:
+          ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
+          ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${ACR_USERNAME}"
+          test -n "${ACR_PASSWORD}"
+          printf '%s' "${ACR_PASSWORD}" |
+            docker login "${ACR_PUBLIC_REGISTRY}" \
+              --username "${ACR_USERNAME}" \
+              --password-stdin
+
+      - name: Mirror pinned Kubernetes images for linux amd64
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mappings=(
+            'registry.k8s.io/kube-apiserver:v1.35.7|kube-apiserver:v1.35.7'
+            'registry.k8s.io/kube-controller-manager:v1.35.7|kube-controller-manager:v1.35.7'
+            'registry.k8s.io/kube-scheduler:v1.35.7|kube-scheduler:v1.35.7'
+            'registry.k8s.io/kube-proxy:v1.35.7|kube-proxy:v1.35.7'
+            'registry.k8s.io/coredns/coredns:v1.13.1|coredns:v1.13.1'
+            'registry.k8s.io/pause:3.10.1|pause:3.10.1'
+            'registry.k8s.io/etcd:3.6.6-0|etcd:3.6.6-0'
+          )
+
+          {
+            echo '## Mirrored Kubernetes images'
+            echo
+            echo '| Target | Digest |'
+            echo '|---|---|'
+          } >>"${GITHUB_STEP_SUMMARY}"
+
+          for mapping in "${mappings[@]}"; do
+            source="${mapping%%|*}"
+            target_name="${mapping#*|}"
+            target="${ACR_PUBLIC_REGISTRY}/${ACR_NAMESPACE}/${target_name}"
+
+            docker pull --platform linux/amd64 "${source}"
+            platform="$(docker image inspect \
+              --format '{{.Os}}/{{.Architecture}}' "${source}")"
+            test "${platform}" = 'linux/amd64'
+
+            docker tag "${source}" "${target}"
+            push_output="$(docker push "${target}" 2>&1 | tee /dev/stderr)"
+            digest="$(printf '%s\n' "${push_output}" |
+              sed -nE 's/.*digest: (sha256:[0-9a-f]{64}).*/\1/p' |
+              tail -n 1)"
+            [[ "${digest}" =~ ^sha256:[0-9a-f]{64}$ ]]
+            printf '| `%s` | `%s` |\n' "${target}" "${digest}" \
+              >>"${GITHUB_STEP_SUMMARY}"
+          done
+
+      - name: Log out of ACR
+        if: always()
+        run: docker logout "${ACR_PUBLIC_REGISTRY}" || true

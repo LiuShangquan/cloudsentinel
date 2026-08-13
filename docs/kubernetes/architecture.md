@@ -51,7 +51,7 @@ Control Plane 保留 kubeadm 默认 `node-role.kubernetes.io/control-plane:NoSch
 
 ## 4. ECS 节点规划
 
-以下是起步规格，不是采购承诺；部署前应根据 Region 可用实例、预算、监控保留期和数据库数据量重新评估。
+以下是企业演进的建议起步规格，不是当前学生采购结果。当前 `inventory.lab.yaml` 保留 3+4+1 拓扑，但除应用节点外均为 2 GiB 内存，只能用于低负载练习；不得据此声称达到下表的生产容量。
 
 | 节点组 | 建议起步规格 | 系统盘/数据盘 | 可用区建议 |
 |---|---|---|---|
@@ -62,6 +62,10 @@ Control Plane 保留 kubeadm 默认 `node-role.kubernetes.io/control-plane:NoSch
 | ops-storage | 2–4 vCPU / 8 GiB 起 | 备份盘按保留策略配置 | 不加入 Kubernetes |
 
 所有 Kubernetes 节点使用固定私网 IP。不要把公网 IP 写入 Inventory；推荐只为 `ops-storage` 或受控 Bastion 提供管理入口。
+
+当前学生集群的两个应用节点位于 `172.16.41.0/24`，其余节点位于 `172.29.253.0/24`。它们只有在属于同一 VPC（或已配置受控路由）且通过双向私网连通性验收后才能组成一个集群；公网地址不能作为 kubeadm、etcd、kubelet 或 Calico 的节点地址。当前 2 GiB `worker-monitor` 只允许低资源、短保留期监控方案，2 GiB `worker-data-01` 只允许本项目已经收紧资源的单副本实验数据层。
+
+操作者已于 2026-08-13 确认两段私网属于同一 VPC、双向连通且主机名已配置；八台 ECS 已统一更换为 Alibaba Cloud Linux 4 LTS 64 位普通版并全部通过只读预检。所有节点的 6.6 内核、cgroup v2、所需模块、私网 TCP 22 全连通和 ACR VPC 端点可达性均已验证。Inventory 在组件版本、CIDR和 Internal NLB 完成冻结前继续标记为不可部署。
 
 ## 5. Control Plane HA
 

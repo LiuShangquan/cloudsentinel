@@ -9,9 +9,9 @@ data:
     character-set-server=utf8mb4
     collation-server=utf8mb4_0900_ai_ci
     default-time-zone=+00:00
-    innodb-buffer-pool-size=384M
-    innodb-redo-log-capacity=256M
-    max-connections=100
+    innodb-buffer-pool-size=256M
+    innodb-redo-log-capacity=128M
+    max-connections=60
     skip-name-resolve=ON
     performance-schema=OFF
     slow-query-log=ON
@@ -85,8 +85,8 @@ spec:
             - name: MYSQL_ROOT_HOST
               value: "%"
           resources:
-            requests: {cpu: 300m, memory: 768Mi}
-            limits: {cpu: "1", memory: 1Gi}
+            requests: {cpu: 250m, memory: 512Mi}
+            limits: {cpu: "1", memory: 896Mi}
           startupProbe:
             exec:
               command: ["/bin/sh", "-ec", "mysqladmin ping -h 127.0.0.1 --silent"]
@@ -207,8 +207,8 @@ spec:
             - name: MYSQL_BACKUP_PASSWORD
               valueFrom: {secretKeyRef: {name: cloudsentinel-data-credentials, key: MYSQL_BACKUP_PASSWORD}}
           resources:
-            requests: {cpu: 50m, memory: 64Mi}
-            limits: {cpu: 500m, memory: 256Mi}
+            requests: {cpu: 50m, memory: 48Mi}
+            limits: {cpu: 300m, memory: 192Mi}
           securityContext:
             allowPrivilegeEscalation: false
             runAsNonRoot: true

@@ -1,4 +1,4 @@
-# Kubernetes 集群部署手册（CentOS Stream 9）
+# Kubernetes 集群部署手册（Alibaba Cloud Linux 4）
 
 > 状态：集群建设命令未执行、未验证。本文只用于建立 Kubernetes 与平台前置条件；应用部署采用 Argo CD，见 `../gitops.md`。执行者必须先替换全部 `<PLACEHOLDER>`、确认版本兼容性、完成变更审批并准备回滚。禁止把 Token、Certificate Key、Kubeconfig、SSH Key 或密码提交到 Git。
 
@@ -76,7 +76,7 @@ printf '%s\n' "$KUBERNETES_VERSION" "$CONTAINERD_VERSION" "$CALICO_VERSION"
 
 **操作**：
 
-1. 确认 7 台 Kubernetes ECS 均为 CentOS Stream 9、固定私网 IP，并位于目标 VPC。
+1. 确认 7 台 Kubernetes ECS 均为 Alibaba Cloud Linux 4 LTS 64 位普通版、固定私网 IP，并位于目标 VPC；`ops-storage` 使用相同操作系统但不加入集群。
 2. 确认 Control Plane 尽可能分布在不同可用区，NLB 在对应 Zone/VSwitch 启用。
 3. 确认 Security Group 符合 `security-and-network.md`，尤其是 2379/2380 和 UDP 4789。
 4. 创建 Internal NLB、TCP 6443 Listener、TCP 6443 Server Group 和 Health Check。
@@ -341,30 +341,22 @@ sysctl net.bridge.bridge-nf-call-ip6tables
 ```bash
 cat /etc/os-release
 uname -m
-sudo dnf install -y dnf-plugins-core curl ca-certificates
-sudo dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
-sudo dnf makecache
-dnf list containerd.io --showduplicates
+dnf repolist
+dnf list --showduplicates containerd
+dnf list --showduplicates containerd.io
+dnf info containerd
+dnf info containerd.io
 ```
 
-从输出选择明确的 EL9 完整 RPM 版本并填写 `CONTAINERD_VERSION`，然后安装：
-
-```bash
-sudo dnf install -y "containerd.io-${CONTAINERD_VERSION}"
-containerd --version
-runc --version
-rpm -q containerd.io
-```
+Alibaba Cloud Linux 4 不是 CentOS Stream 9。不要直接添加 Docker CentOS Repository 或强装 EL9 RPM；先用当前系统仓库枚举可用的 `containerd`/`containerd.io` 包，确认包名、版本、来源和 Kubernetes CRI 兼容性后再更新本节安装命令。当前系统基线变更后的运行时安装步骤仍为 `NOT VERIFIED`，在版本冻结前只执行上述查询，不执行安装。
 
 **命令作用**：Docker 的 CentOS RPM Repository 同时提供独立 `containerd.io` Package；Kubernetes 使用 containerd CRI，不要求运行 Docker Engine 或 Dockershim。
 
-**预期结果**：安装版本与审批记录完全一致；`containerd` 和 `runc` Binary 可用。
+**预期结果**：查询结果能确定唯一受信软件源、实际包名和可固定的完整版本；安装尚未发生。
 
-**如何检查**：`rpm -qi containerd.io`、`containerd --version`，并记录 Package NEVRA。
+**如何检查**：记录 `dnf repolist` 与两个候选包的查询结果，确认后再把安装命令和完整 NEVRA 写回本手册。
 
-**失败时看哪里**：Repository GPG Key、Proxy/DNS、EL9 Package 可用性、架构和冲突 Package。不要改用来源不明的 RPM。
-
-**CentOS Stream 10 Compatibility Note**：先确认 Repository 提供 EL10 `containerd.io`，并使用 `dnf5` 对应的 Config Manager/Repository 命令。没有明确 EL10 Package 时停止，不要强装 EL9 RPM。
+**失败时看哪里**：Repository GPG Key、Proxy/DNS、Alibaba Cloud Linux 4 Package 可用性、架构和冲突 Package。不要改用来源不明或为其他发行版构建的 RPM。
 
 ## 10. 配置 containerd 与 systemd cgroup
 
@@ -379,7 +371,7 @@ stat -fc %T /sys/fs/cgroup
 mount | grep cgroup
 ```
 
-`cgroup2fs` 表示统一 Cgroup v2。CentOS Stream 9 默认应为 Cgroup v2，但必须以实际输出为准。
+`cgroup2fs` 表示统一 Cgroup v2。Alibaba Cloud Linux 4 默认启用 Cgroup v2，但必须以每台节点的实际输出为准。
 
 **生成并检查配置**：
 
@@ -505,7 +497,7 @@ rpm -q kubeadm kubelet kubectl cri-tools kubernetes-cni
 
 **执行节点**：`[所有 Kubernetes Node]`。
 
-**CentOS Stream 9 命令**：
+**Alibaba Cloud Linux 4 命令（执行前先确认插件包名）**：
 
 ```bash
 sudo dnf install -y python3-dnf-plugin-versionlock
@@ -563,6 +555,39 @@ sudo crictl --runtime-endpoint "$CRI_SOCKET" images
 2. 扫描并同步到组织自己的 Alibaba Cloud ACR。
 3. 将 `KUBERNETES_IMAGE_REPOSITORY` 改为 ACR Namespace。
 4. 再次执行 `images list/pull` 并核对 Digest。
+
+当前实验集群已于 2026-08-13 实测确认：北京 ECS 拉取
+`registry.k8s.io/kube-apiserver:v1.35.7` 时，请求被重定向到
+`europe-west3-docker.pkg.dev`，随后发生 TCP 443 超时。因此本项目使用
+`.github/workflows/mirror-kubernetes-images.yml`，由 GitHub 托管 Runner
+把 kubeadm `v1.35.7` 所需的 7 个固定 `linux/amd64` 镜像同步到北京 ACR。
+
+运行工作流前，必须在命名空间 `cloudsentinel0306` 中创建以下 7 个仓库：
+
+- `kube-apiserver`
+- `kube-controller-manager`
+- `kube-scheduler`
+- `kube-proxy`
+- `coredns`
+- `pause`
+- `etcd`
+
+这些仓库只保存原本公开的 Kubernetes 官方镜像，可设置为公开仓库，
+从而允许自建集群通过 VPC Endpoint 匿名拉取；CloudSentinel 业务镜像和
+数据镜像仍必须保持私有。公开仓库可能被外部用户拉取并消耗个人版额度，
+因此不得在其中放置任何私有制品。
+
+工作流成功后，目标镜像仓库固定为：
+
+```bash
+export KUBERNETES_IMAGE_REPOSITORY="crpi-1s64ln3ptbvgkqof-vpc.cn-beijing.personal.cr.aliyuncs.com/cloudsentinel0306"
+```
+
+CoreDNS 的上游路径是 `registry.k8s.io/coredns/coredns`，但 kubeadm 使用
+自定义 `imageRepository` 时会请求目标仓库中的 `coredns`。必须以
+`kubeadm config images list --image-repository ...` 的输出作为最终目标路径，
+不能直接复制上游子路径。同步后的 Push Digest 记录在 GitHub Actions
+Step Summary 中，节点拉取后应核对目标 Tag 与 Digest。
 
 不要使用来源不明的公共 Mirror。
 
@@ -1397,17 +1422,17 @@ sudo dnf versionlock list
 
 **失败时看哪里**：根据失败项跳转到 `troubleshooting.md`，保留命令输出、Event 和不含 Secret 的 Log。任何失败都阻止声明集群可用于下一阶段。
 
-## CentOS Stream 10 总兼容说明
+## Alibaba Cloud Linux 4 执行边界
 
-本文以 CentOS Stream 9 为唯一完整命令基线。Stream 10 执行前必须重新验证：
+本文的架构与 kubeadm 流程以 Alibaba Cloud Linux 4 为当前唯一基线。由于操作系统刚完成切换，以下项目必须在真实节点上重新验证后才能冻结命令：
 
-- `dnf5` Repository、Exclude 和 Version Lock 语法。
-- Kubernetes 与 containerd 是否提供 EL10 RPM。
-- Calico 对当前 Kernel、nftables、NetworkManager 和 SELinux 的支持。
-- `kubeadm` Config API Version 与当前 Minor Version。
+- DNF Repository、Package Name、Exclude 和 Version Lock 语法。
+- Kubernetes 与 containerd 的实际 RPM 来源和完整版本。
+- Calico 对当前 6.6 内核、nftables、NetworkManager 和 SELinux 的支持。
+- `kubeadm` Config API Version 与所选 Kubernetes Minor Version。
 - 所有 Package Name、Systemd Unit 和 Config Path。
 
-只在完成实验节点验证后才能把 Stream 9 步骤迁移到 Stream 10，不维护第二套未经验证的完整手册。
+不得沿用旧 CentOS Stream 9 命令强装 EL9 RPM，也不得把单节点成功直接等同于八节点验收完成。
 
 ## 官方参考
 

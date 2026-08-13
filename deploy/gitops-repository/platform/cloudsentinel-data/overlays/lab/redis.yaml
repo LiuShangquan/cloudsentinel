@@ -75,7 +75,7 @@ spec:
               auto-aof-rewrite-percentage 100
               auto-aof-rewrite-min-size 64mb
               save 300 10
-              maxmemory 128mb
+              maxmemory 96mb
               maxmemory-policy noeviction
               dir /data
               EOF
@@ -104,8 +104,8 @@ spec:
             - name: REDISCLI_AUTH
               valueFrom: {secretKeyRef: {name: cloudsentinel-data-credentials, key: REDIS_PASSWORD}}
           resources:
-            requests: {cpu: 100m, memory: 128Mi}
-            limits: {cpu: 500m, memory: 256Mi}
+            requests: {cpu: 75m, memory: 96Mi}
+            limits: {cpu: 300m, memory: 192Mi}
           startupProbe:
             exec:
               command: ["/bin/sh", "-ec", "redis-cli -h 127.0.0.1 ping | grep -q PONG"]

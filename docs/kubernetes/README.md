@@ -25,15 +25,15 @@
 
 ## 技术基线
 
-- OS：CentOS Stream 9。
-- CentOS Stream 10：只在关键差异处提供兼容说明，执行前必须确认 DNF5、内核、SELinux、containerd RPM 和 Kubernetes RPM 的实际可用性。
-- Kubernetes、containerd、Calico：不在文档中固定“当前最新”版本，部署时通过 `KUBERNETES_VERSION`、`CONTAINERD_VERSION`、`CALICO_VERSION` 锁定。
+- OS：Alibaba Cloud Linux 4 LTS 64 位普通版，Linux 6.6 LTS，统一 cgroup v2。
+- 当前八台 ECS 已完成镜像更换并全部通过只读预检；7 个 Kubernetes 节点也已完成 containerd、kubeadm、kubelet、kubectl、cri-tools 与 CNI Plugins 基础安装验收。`ops-storage` 保持集群外角色。
+- 当前实验集群已冻结 Kubernetes `v1.35.7`、containerd `1.7.34` 与 Calico `v3.32.1`；不得把这些版本描述为长期自动跟随的“最新版本”。
 - Pod 网络：Calico VXLAN，UDP 4789 只允许 Kubernetes 节点之间通信。
 
 ## 建议阅读与部署顺序
 
 1. 阅读[架构设计](architecture.md)，确认节点规格、角色和单点限制。
-2. 填写 [`deploy/kubernetes/inventory.example.yaml`](../../deploy/kubernetes/inventory.example.yaml) 的副本。
+2. 按 [`deploy/kubernetes/inventory.example.yaml`](../../deploy/kubernetes/inventory.example.yaml) 维护实际 Inventory；当前学生集群已记录在 [`inventory.lab.yaml`](../../deploy/kubernetes/inventory.lab.yaml)，其中仍为占位符的字段必须在建群前补齐。
 3. 按[网络与安全设计](security-and-network.md)在阿里云控制台准备 VPC、VSwitch、Security Group、Internal NLB 和私有 DNS。
 4. 从[部署手册](deployment-guide.md)第 0 节开始逐条执行，直至第 30 节验收。
 5. 集群通过验收后，按[实验 StatefulSet 数据层](lab-stateful-data.md)准备数据节点、密钥、ACR 镜像和 Argo CD 同步顺序。
@@ -49,6 +49,9 @@
 | `troubleshooting.md` | 高频故障的现象、检查、解决方向、恢复验证，以及受控重建流程 |
 | `lab-stateful-data.md` | 学生集群 MySQL/Redis StatefulSet、静态本地存储、Secret、备份与启用顺序 |
 | `inventory.example.yaml` | 不含 Secret 的环境变量与节点信息模板 |
+| `inventory.lab.yaml` | 当前 8 台 ECS 的私网地址、角色、容量和部署阻断项；不记录公网地址或 Secret |
+| `preflight-alinux4.sh` | Alibaba Cloud Linux 4 八节点只读体检；不安装软件、不加载模块、不修改系统 |
+| `preflight-centos7.sh` | 已停用的 CentOS 7 历史体检脚本，仅保留审计上下文，不再用于当前集群 |
 
 ## 部署前必须准备的信息
 
@@ -64,6 +67,8 @@
 ## 重要边界
 
 - `worker-data-01` 是学生练习数据层单点；节点或本地盘故障会同时影响 MySQL、Redis 和同盘备份。
+- 当前实购的 Control Plane、Monitoring、Data 与运维节点均只有 2 GiB 内存，属于练习环境最低边缘容量：监控必须使用短保留期和低资源配置，不能直接套用企业默认值；数据层也已降低 MySQL/Redis 内存参数，并必须观察 Node MemoryPressure 与容器 OOM。
+- 当前所有节点已更换为 Alibaba Cloud Linux 4 LTS 64 位普通版；CIDR、Internal NLB、组件版本与 7 节点 Runtime 基线均已冻结并完成实测。`registry.k8s.io` 经 Google Artifact Registry 重定向后从北京节点访问超时，当前阻断项为安全组收敛、Kubernetes 固定镜像同步到 ACR，以及同步后的 VPC 拉取验证。
 - 企业生产仍统一使用 Alibaba Cloud RDS 和 Tair；本次 StatefulSet 只属于 `lab-*` Overlay，不构成生产高可用方案。
 - 平台控制器由平台仓库维护；应用 GitOps 仓库只管理 CloudSentinel 的 Namespace 级资源。
 - ACR 个人版固定凭证只进入 GitHub Repository Secrets 和集群密钥后端，不进入 Inventory 或 Git。

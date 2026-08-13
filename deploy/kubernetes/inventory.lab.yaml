@@ -1,0 +1,263 @@
+cluster:
+  name: cloudsentinel-k8s
+  region: cn-beijing
+  lifecycle: student-lab
+  deployment_ready: false
+  accepted_risks:
+    - The purchased control-plane, monitoring, data and operations nodes have only 2 GiB memory and are suitable only for low-load lab use.
+    - The lab MySQL and Redis StatefulSets share the worker-data-01 failure domain and are not highly available.
+  blockers:
+    - Remove the audited public allow-all TCP security-group rule only after a replacement SSH allowlist rule is verified.
+    - Add explicit least-privilege private Kubernetes and Calico security-group rules before kubeadm init.
+    - Verify that the frozen Kubernetes and Calico images can be pulled from the lab nodes before kubeadm init.
+
+  control_plane_endpoint: "nlb-axdxf21jombh758m09.cn-beijing.nlb.aliyuncsslb.com:6443"
+  vpc_id: vpc-2zeer06chhjz9pjq3qm3n
+  vpc_cidr: 172.16.0.0/12
+  pod_cidr: 10.244.0.0/16
+  service_cidr: 10.96.0.0/12
+
+  vswitches:
+    - id: vsw-2zej6zg9kscxw7s021q9n
+      cidr: 172.16.32.0/20
+      availability_zone: cn-beijing-k
+      nodes:
+        - worker-app-01
+        - worker-app-02
+    - id: vsw-2zeasvhv2dikiwzuvel0g
+      cidr: 172.29.240.0/20
+      availability_zone: cn-beijing-g
+      nodes:
+        - master-01
+        - master-02
+        - master-03
+        - worker-monitor
+        - worker-data-01
+        - ops-storage
+
+  additional_vswitches:
+    - id: vsw-2zeq56omjune5xz62fxz8
+      cidr: 172.18.144.0/20
+      availability_zone: cn-beijing-h
+      nodes: []
+
+  route_table:
+    id: vtb-2zeiq8wdyy5irqr1kstph
+    type: system
+    is_default: true
+    route_entries_verified_no_overlap: true
+    route_entries_verified_at: "2026-08-13"
+    observed_system_routes:
+      - 172.16.32.0/20
+      - 172.18.144.0/20
+      - 172.29.240.0/20
+      - 100.64.0.0/10
+
+  internal_nlb:
+    name: cloudsentinel-k8s-apiserver
+    id: nlb-axdxf21jombh758m09
+    dns_name: nlb-axdxf21jombh758m09.cn-beijing.nlb.aliyuncsslb.com
+    address_type: intranet
+    ip_version: ipv4
+    cross_zone: true
+    instance_runtime_status: running
+    instance_runtime_verified_at: "2026-08-13"
+    zones:
+      - availability_zone: cn-beijing-g
+        vswitch_id: vsw-2zeasvhv2dikiwzuvel0g
+        vip: 172.29.253.156
+        local_ips:
+          - 172.29.253.157
+          - 172.29.253.158
+      - availability_zone: cn-beijing-k
+        vswitch_id: vsw-2zej6zg9kscxw7s021q9n
+        vip: 172.16.41.184
+        local_ips:
+          - 172.16.41.185
+          - 172.16.41.186
+    listener:
+      id: lsn-id6rbklme4dy293637
+      name: cloudsentinel-k8s-apiserver-6443
+      protocol: tcp
+      port: 6443
+      idle_timeout_seconds: 900
+      proxy_protocol: false
+      configuration_review_verified: true
+      runtime_status: running
+      runtime_status_verified: true
+      runtime_status_verified_at: "2026-08-13"
+      pre_apiserver_health_status: abnormal_expected
+    backend_server_group:
+      id: sgp-8bypcjnurhw2ee867q
+      configuration_review_verified: true
+      runtime_attachment_verified: true
+      runtime_attachment_verified_at: "2026-08-13"
+      runtime_backend_count: 3
+      backends:
+        - name: master-01
+          private_ip: 172.29.253.154
+          port: 6443
+          weight: 100
+        - name: master-02
+          private_ip: 172.29.253.155
+          port: 6443
+          weight: 100
+        - name: master-03
+          private_ip: 172.29.253.152
+          port: 6443
+          weight: 100
+
+  kubernetes_version: "v1.35.7"
+  kubernetes_rpm_version: "1.35.7-150500.1.1"
+  kubernetes_rpm_repository: "https://pkgs.k8s.io/core:/stable:/v1.35/rpm/"
+  containerd_version: "1.7.34-1.alnx4"
+  containerd_rpm_repository: "alinux4-updates"
+  cri_tools_rpm_version: "1.35.0-150500.1.1"
+  cni_plugins_rpm_version: "1.3.0-2.alnx4"
+  calico_version: "v3.32.1"
+  kubernetes_image_repository: crpi-1s64ln3ptbvgkqof-vpc.cn-beijing.personal.cr.aliyuncs.com/cloudsentinel0306
+  kubernetes_image_mirror_workflow: .github/workflows/mirror-kubernetes-images.yml
+  kubernetes_image_pull_default_registry_verified: false
+  kubernetes_image_pull_default_registry_failure:
+    verified_at: "2026-08-13"
+    failed_image: registry.k8s.io/kube-apiserver:v1.35.7
+    redirected_registry: europe-west3-docker.pkg.dev
+    failure: tcp_443_timeout
+  kubernetes_acr_repositories_required:
+    visibility: public
+    content_boundary: official_kubernetes_images_only
+    repositories:
+      - kube-apiserver
+      - kube-controller-manager
+      - kube-scheduler
+      - kube-proxy
+      - coredns
+      - pause
+      - etcd
+
+  observed_os: "Alibaba Cloud Linux 4 LTS 64-bit (all eight nodes command-verified)"
+  recommended_target_os: "Alibaba Cloud Linux 4 LTS 64-bit"
+  architecture: amd64
+
+  security_group_audit:
+    verified_at: "2026-08-13"
+    security_group_id: sg-2zeawufz0877gia9zcp0
+    security_group_type: basic
+    attached_instance_count: 8
+    intra_group_policy: mutual_access
+    public_all_tcp_rule_detected: true
+    public_all_tcp_source: 0.0.0.0/0
+    public_all_tcp_ports: 1-65535
+    public_ssh_rule_detected: true
+    public_http_rule_detected: true
+    public_rdp_rule_detected: true
+    public_icmp_rule_detected: true
+    remediation_complete: false
+
+registry:
+  public_push_endpoint: crpi-1s64ln3ptbvgkqof.cn-beijing.personal.cr.aliyuncs.com
+  vpc_pull_endpoint: crpi-1s64ln3ptbvgkqof-vpc.cn-beijing.personal.cr.aliyuncs.com
+  namespace: cloudsentinel0306
+
+nodes:
+  control_plane:
+    - name: master-01
+      private_ip: 172.29.253.154
+      vcpu: 2
+      memory_gib: 2
+    - name: master-02
+      private_ip: 172.29.253.155
+      vcpu: 2
+      memory_gib: 2
+    - name: master-03
+      private_ip: 172.29.253.152
+      vcpu: 2
+      memory_gib: 2
+
+  workers:
+    - name: worker-app-01
+      private_ip: 172.16.41.182
+      role: app
+      vcpu: 2
+      memory_gib: 4
+    - name: worker-app-02
+      private_ip: 172.16.41.183
+      role: app
+      vcpu: 2
+      memory_gib: 4
+    - name: worker-monitor
+      private_ip: 172.29.253.150
+      role: monitoring
+      vcpu: 2
+      memory_gib: 2
+    - name: worker-data-01
+      private_ip: 172.29.253.151
+      role: data
+      vcpu: 2
+      memory_gib: 2
+
+external_nodes:
+  - name: ops-storage
+    private_ip: 172.29.253.153
+    join_kubernetes: false
+    vcpu: 2
+    memory_gib: 2
+
+verified_facts:
+  same_vpc: true
+  bidirectional_private_connectivity: true
+  hostnames_configured: true
+  alinux4_rollout_reported_complete: true
+  alinux4_command_verified_nodes:
+    - master-01
+    - master-02
+    - master-03
+    - ops-storage
+    - worker-app-01
+    - worker-monitor
+    - worker-data-01
+    - worker-app-02
+  alinux4_preflight_complete: true
+  verified_kernel_series: "6.6.102.alnx4.x86_64"
+  verified_cgroup_filesystem: cgroup2fs
+  private_tcp22_full_mesh: true
+  acr_vpc_endpoint_http_status: 401
+  vpc_and_vswitch_ids_recorded: true
+  pod_service_cidrs_non_overlapping_with_vpc: true
+  pod_service_cidrs_non_overlapping_with_route_table: true
+  master_01_kernel: "6.6.102-6.alnx4.x86_64"
+  master_01_cgroup_filesystem: cgroup2fs
+  master_01_containerd_candidates_enumerated: true
+  master_01_kubernetes_1_35_candidates_enumerated: true
+  frozen_kubernetes_containerd_versions_verified_at: "2026-08-13"
+  master_01_node_baseline_installed: true
+  master_01_containerd_active: true
+  master_01_cri_connected: true
+  master_01_node_baseline_verified_at: "2026-08-13"
+  master_02_node_baseline_installed: true
+  master_02_containerd_active: true
+  master_02_cri_connected: true
+  master_02_node_baseline_verified_at: "2026-08-13"
+  master_03_node_baseline_installed: true
+  master_03_containerd_active: true
+  master_03_cri_connected: true
+  master_03_node_baseline_verified_at: "2026-08-13"
+  worker_app_01_node_baseline_installed: true
+  worker_app_01_containerd_active: true
+  worker_app_01_cri_connected: true
+  worker_app_01_node_baseline_verified_at: "2026-08-13"
+  worker_monitor_node_baseline_installed: true
+  worker_monitor_containerd_active: true
+  worker_monitor_cri_connected: true
+  worker_monitor_node_baseline_verified_at: "2026-08-13"
+  worker_app_02_node_baseline_installed: true
+  worker_app_02_containerd_active: true
+  worker_app_02_cri_connected: true
+  worker_app_02_node_baseline_verified_at: "2026-08-13"
+  worker_data_01_node_baseline_installed: true
+  worker_data_01_containerd_active: true
+  worker_data_01_cri_connected: true
+  worker_data_01_node_baseline_verified_at: "2026-08-13"
+  all_seven_kubernetes_node_baselines_verified: true
+  verified_by: operator
+  verified_at: "2026-08-13"
