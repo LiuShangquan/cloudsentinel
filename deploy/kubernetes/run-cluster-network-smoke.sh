@@ -6,7 +6,7 @@
 
 set -Eeuo pipefail
 
-readonly SCRIPT_REVISION="2026-08-14.1"
+readonly SCRIPT_REVISION="2026-08-14.2"
 readonly TEST_NAMESPACE="cloudsentinel-smoke"
 readonly EXPECTED_RESPONSE="cloudsentinel-network-smoke"
 
@@ -39,8 +39,12 @@ on_exit() {
 	else
 		printf '\nCLUSTER_NETWORK_SMOKE_RESULT=FAIL exit_code=%s\n' \
 			"${exit_code}" >&2
-		printf 'Diagnostic resources were preserved in namespace %s.\n' \
-			"${TEST_NAMESPACE}" >&2
+		if kubectl get namespace "${TEST_NAMESPACE}" >/dev/null 2>&1; then
+			printf 'Diagnostic resources were preserved in namespace %s.\n' \
+				"${TEST_NAMESPACE}" >&2
+		else
+			printf 'No diagnostic namespace exists; failure occurred before resource creation.\n' >&2
+		fi
 	fi
 	[[ -z "${log_file}" ]] || printf 'CLUSTER_NETWORK_SMOKE_LOG=%s\n' "${log_file}"
 }
@@ -89,8 +93,12 @@ if kubectl get namespace "${TEST_NAMESPACE}" >/dev/null 2>&1; then
 	die "test namespace already exists; inspect and remove it deliberately first"
 fi
 
-kubectl apply --dry-run=server -f "${NETWORK_MANIFEST}" >/dev/null
-kubectl apply --dry-run=server -f "${POLICY_MANIFEST}" >/dev/null
+# The Namespace and its namespaced objects share one multi-document manifest.
+# Server-side dry-run does not persist the Namespace before validating later
+# documents, so use client-side dry-run here and let the real apply below
+# create resources in manifest order.
+kubectl apply --dry-run=client -f "${NETWORK_MANIFEST}" >/dev/null
+kubectl apply --dry-run=client -f "${POLICY_MANIFEST}" >/dev/null
 
 printf '\n===== create smoke resources =====\n'
 kubectl apply -f "${NETWORK_MANIFEST}"

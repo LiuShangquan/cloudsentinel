@@ -1314,6 +1314,8 @@ kubectl delete -f dns-test.yaml
 
 当前实验集群由第 25 节的固定 Smoke 脚本先验证无 Policy 时连通，再应用 `tests/network-policy-smoke.yaml`，断言带 `access=allowed` 的 Client 可访问且另一个 Client 被阻断。失败时保留 Namespace，成功时自动清理。
 
+**当前实验集群证据（2026-08-14）**：跨节点 Pod IP、ClusterIP/EndpointSlice、集群 DNS 与 Calico NetworkPolicy 均已通过；允许客户端获得固定响应，拒绝客户端按预期超时，临时 Namespace 已删除。证据日志为 `/root/cloudsentinel-cluster-network-smoke-20260814T144318.log`。
+
 **测试流程**：使用专用 Namespace，先验证无 Policy 时可访问，再应用 Default Deny，最后只允许带 `access=allowed` 的 Client。
 
 ```yaml
@@ -1448,6 +1450,8 @@ done
 
 **失败时看哪里**：Kubeconfig Server、NLB Health/Algorithm、API Server Readyz、SG/firewalld、Certificate SAN、etcd Quorum 和客户端 DNS Cache。
 
+**当前实验集群证据（2026-08-14）**：主动停止 `master-03` 的 kubelet 与 kube-apiserver 后，该 Backend 的 6443 端口不可用；Internal NLB 在故障窗口内连续 20 次 `/livez` 请求全部返回 `ok`，集群 `/readyz` 同时为 `ok`。重新启动 kubelet 后，`master-03` Node 与 API Server Pod 均重新 Ready，故障切换与恢复通过。
+
 ## 30. 最终验收
 
 **目标**：在不部署 CloudSentinel 的前提下，冻结 Kubernetes 基础设施验收证据。
@@ -1518,6 +1522,8 @@ sudo dnf versionlock list
 - NLB 单 Backend 故障测试通过并已恢复。
 - 所有组件版本固定，Version Lock 生效。
 - 没有部署任何 CloudSentinel Workload。
+
+**当前实验集群结论（2026-08-14）**：以上 Kubernetes 基础设施门禁均已获得真实运行证据，Inventory 已切换为 `deployment_ready: true`。后续工作属于平台控制器、Secret、实验数据层和应用 GitOps 部署，不再重复本节底层验收。
 
 **失败时看哪里**：根据失败项跳转到 `troubleshooting.md`，保留命令输出、Event 和不含 Secret 的 Log。任何失败都阻止声明集群可用于下一阶段。
 

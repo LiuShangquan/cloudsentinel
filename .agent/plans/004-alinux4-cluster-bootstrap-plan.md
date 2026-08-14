@@ -44,3 +44,6 @@
 - Calico `v3.32.1` 与 `APIServer/default` 已安装；`apiserver`、`calico`、`ippools`、`tiers` 四个 TigeraStatus 均为 `Available=True`、`Degraded=False`，两副本 Calico API Server 与 CoreDNS 均健康。
 - 2026-08-14 已完成 `master-02`、`master-03` 和 4 个 Worker 的逐台 Join：7 个 Kubernetes 节点均为 Ready，stacked etcd 的 3 个 Member 均为 `started`。`master-03` 的 Join 在 TLS Bootstrap 等待阶段被操作者中断，但 kubelet、控制面静态 Pod、etcd 与 Calico 已完成收敛；随后补齐了 `control-plane` Label 与默认 `NoSchedule` Taint。
 - `worker-app-01/02` 已设置 `node-role=app`；`worker-monitor` 已设置 `node-role=monitoring` 与 `dedicated=monitoring:NoSchedule`；`worker-data-01` 已设置 `node-role=data` 与 `dedicated=data:NoSchedule`。下一门禁是集群级 HA、跨节点 Pod、Service、DNS、NetworkPolicy、资源压力与 NLB 后端健康验收；这些检查通过前不进入 Argo CD 和业务 GitOps 同步。
+- 固定 BusyBox 工具镜像已通过 GitHub Actions 同步到 ACR，并在两个 App Worker 按 digest 校验。2026-08-14 的可回收 Smoke Test 已通过跨节点 Pod IP、ClusterIP/EndpointSlice、集群 DNS 与 Calico NetworkPolicy 放行/阻断验收，临时 Namespace 已删除；证据日志为 `/root/cloudsentinel-cluster-network-smoke-20260814T144318.log`。
+- 同日完成只读资源与 API 入口验收：7 个节点均为 Ready，Memory/Disk/PID Pressure 全部为 False；三台 Control Plane 的 `/livez` 均返回 `ok`，Internal NLB 的两个私网 VIP 已解析，连续 20 次 `/livez` 请求零失败。
+- 已在 `master-03` 主动停止 kubelet 与 kube-apiserver，NLB 在单 Backend 故障窗口内连续 20 次 `/livez` 请求零失败且集群 `/readyz` 为 `ok`；恢复 kubelet 后 Node 与 API Server Pod 重新 Ready。集群基础设施验收完成，可以进入平台控制器、Secret 控制面、实验数据层与 Argo CD 阶段。

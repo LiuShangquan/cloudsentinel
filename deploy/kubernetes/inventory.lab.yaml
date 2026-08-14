@@ -2,15 +2,14 @@ cluster:
   name: cloudsentinel-k8s
   region: cn-beijing
   lifecycle: student-lab
-  deployment_ready: false
+  deployment_ready: true
   accepted_risks:
     - The purchased control-plane, monitoring, data and operations nodes have only 2 GiB memory and are suitable only for low-load lab use.
     - The lab MySQL and Redis StatefulSets share the worker-data-01 failure domain and are not highly available.
     - Public IPv4 ICMP remains enabled for lab diagnostics.
     - Public TCP 22 remains reachable from 0.0.0.0/0 because the operator has no fixed public source address; all nodes must enforce key-only SSH.
     - All eight nodes temporarily share one security group with intra-group mutual access instead of role-separated least-privilege groups.
-  blockers:
-    - Complete cluster-wide HA, cross-node Pod, Service, DNS, NetworkPolicy, resource-pressure and NLB backend-health acceptance before starting GitOps platform deployment.
+  blockers: []
 
   control_plane_endpoint: "nlb-axdxf21jombh758m09.cn-beijing.nlb.aliyuncsslb.com:6443"
   vpc_id: vpc-2zeer06chhjz9pjq3qm3n
@@ -189,10 +188,44 @@ cluster:
     public_push_image: crpi-1s64ln3ptbvgkqof.cn-beijing.personal.cr.aliyuncs.com/cloudsentinel0306/cloudsentinel-toolbox:1.37.0
     vpc_pull_image: crpi-1s64ln3ptbvgkqof-vpc.cn-beijing.personal.cr.aliyuncs.com/cloudsentinel0306/cloudsentinel-toolbox:1.37.0
     mirror_workflow: .github/workflows/mirror-cluster-test-images.yml
-    mirrored: false
-    expected_digest_recorded: false
-    application_workers_pull_verified: false
-    network_smoke_executed: false
+    mirrored: true
+    mirrored_at: "2026-08-14"
+    expected_digest: sha256:40baa8cf363d964fe2a44bfc560923d008a6e284fde13d8984ad3bafe9c55f3c
+    expected_digest_recorded: true
+    application_workers_pull_verified: true
+    application_workers_pull_verified_at: "2026-08-14"
+    application_workers_pull_verified_nodes:
+      - worker-app-01
+      - worker-app-02
+    application_workers_pull_logs:
+      worker-app-01: /root/cloudsentinel-cluster-test-image-worker-app-01-20260814T142622.log
+      worker-app-02: /root/cloudsentinel-cluster-test-image-worker-app-02-20260814T142650.log
+    network_smoke_executed: true
+    network_smoke_executed_at: "2026-08-14"
+    network_smoke_log: /root/cloudsentinel-cluster-network-smoke-20260814T144318.log
+    cross_node_pod_network_verified: true
+    cluster_ip_service_verified: true
+    cluster_dns_verified: true
+    calico_network_policy_verified: true
+    network_smoke_namespace_cleaned: true
+    all_nodes_ready_without_pressure: true
+    direct_api_backends_verified:
+      master-01: ok
+      master-02: ok
+      master-03: ok
+    internal_nlb_vips_verified:
+      - 172.29.253.156
+      - 172.16.41.184
+    internal_nlb_api_attempts: 20
+    internal_nlb_api_failures: 0
+    single_api_backend_failure_verified: true
+    failed_api_backend: master-03
+    internal_nlb_failure_window_attempts: 20
+    internal_nlb_failure_window_failures: 0
+    cluster_api_ready_during_single_backend_failure: true
+    failed_api_backend_recovered: true
+    control_plane_failover_and_recovery_verified_at: "2026-08-14"
+    cluster_infrastructure_acceptance_complete: true
 
   observed_os: "Alibaba Cloud Linux 4 LTS 64-bit (all eight nodes command-verified)"
   recommended_target_os: "Alibaba Cloud Linux 4 LTS 64-bit"
