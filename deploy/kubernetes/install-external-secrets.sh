@@ -12,7 +12,7 @@ readonly EXPECTED_UPSTREAM_SHA256="7d1533a7ace1f0ee9a21ac2215665e8f5856690ca7b22
 readonly EXPECTED_IMAGE_ROOT="crpi-1s64ln3ptbvgkqof-vpc.cn-beijing.personal.cr.aliyuncs.com/cloudsentinel0306/cloudsentinel-external-secrets"
 readonly EXPECTED_NAMESPACE="external-secrets"
 readonly EXPECTED_PULL_SECRET="platform-acr-registry"
-readonly SCRIPT_REVISION="2026-08-14.1"
+readonly SCRIPT_REVISION="2026-08-14.2"
 
 apply=false
 bundle_dir=""
@@ -184,6 +184,12 @@ image_digest="${deploy_image#"${EXPECTED_IMAGE_ROOT}@"}"
 	die "all three Deployments must reference the private registry Secret"
 [[ "$(grep -c 'node-role: app' "${rendered_file}")" -eq 3 ]] ||
 	die "all three Deployments must target app nodes"
+[[ "$(grep -Fc -- '--dns-name=external-secrets-webhook.external-secrets.svc' \
+	"${rendered_file}")" -eq 1 ]] ||
+	die "webhook DNS name does not match the external-secrets namespace"
+if grep -Fq 'external-secrets-webhook.default.svc' "${rendered_file}"; then
+	die "rendered bundle contains the upstream default webhook DNS name"
+fi
 if grep -Eq '^[[:space:]]*image:[[:space:]]+(ghcr\.io|registry\.k8s\.io|docker\.io)/' \
 	"${rendered_file}"; then
 	die "rendered bundle contains a public registry image"
