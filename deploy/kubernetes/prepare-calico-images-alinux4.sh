@@ -9,7 +9,7 @@ set -Eeuo pipefail
 readonly CALICO_VERSION="v3.32.1"
 readonly TIGERA_OPERATOR_VERSION="v1.42.3"
 readonly ACR_IMAGE_ROOT="crpi-1s64ln3ptbvgkqof-vpc.cn-beijing.personal.cr.aliyuncs.com/cloudsentinel0306"
-readonly SCRIPT_REVISION="2026-08-13.1"
+readonly SCRIPT_REVISION="2026-08-14.1"
 
 apply=false
 expected_hostname=""
@@ -131,12 +131,13 @@ readonly -a required_images=(
 	"${ACR_IMAGE_ROOT}/calico-node-driver-registrar:${CALICO_VERSION}"
 	"${ACR_IMAGE_ROOT}/calico-pod2daemon-flexvol:${CALICO_VERSION}"
 	"${ACR_IMAGE_ROOT}/calico-key-cert-provisioner:${CALICO_VERSION}"
+	"${ACR_IMAGE_ROOT}/calico-apiserver:${CALICO_VERSION}"
 )
 
 section "required ACR images"
 printf '%s\n' "${required_images[@]}"
-[[ "${#required_images[@]}" -eq 9 ]] ||
-	die "expected 9 Calico images, got ${#required_images[@]}"
+[[ "${#required_images[@]}" -eq 10 ]] ||
+	die "expected 10 Calico images, got ${#required_images[@]}"
 
 section "pull pinned images from ACR VPC endpoint"
 for image in "${required_images[@]}"; do

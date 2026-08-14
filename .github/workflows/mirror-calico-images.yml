@@ -66,6 +66,7 @@ jobs:
             'quay.io/calico/node-driver-registrar:v3.32.1|calico-node-driver-registrar:v3.32.1'
             'quay.io/calico/pod2daemon-flexvol:v3.32.1|calico-pod2daemon-flexvol:v3.32.1'
             'quay.io/calico/key-cert-provisioner:v3.32.1|calico-key-cert-provisioner:v3.32.1'
+            'quay.io/calico/apiserver:v3.32.1|calico-apiserver:v3.32.1'
           )
 
           {

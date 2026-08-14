@@ -50,9 +50,11 @@
 | `lab-stateful-data.md` | 学生集群 MySQL/Redis StatefulSet、静态本地存储、Secret、备份与启用顺序 |
 | `inventory.example.yaml` | 不含 Secret 的环境变量与节点信息模板 |
 | `inventory.lab.yaml` | 当前 8 台 ECS 的私网地址、角色、容量和部署阻断项；不记录公网地址或 Secret |
+| `kubeadm-init-master-01.yaml` | 当前实验集群完成变量替换的 kubeadm v1beta4 初始化配置；不含 Bootstrap Token、Certificate Key 或其他 Secret |
 | `preflight-alinux4.sh` | Alibaba Cloud Linux 4 八节点只读体检；不安装软件、不加载模块、不修改系统 |
 | `prepare-kubernetes-images-alinux4.sh` | 在 7 个 Kubernetes 节点从 ACR VPC 端点预拉固定 kubeadm 镜像，并对齐 containerd Pause 镜像；不执行 init/join |
 | `prepare-calico-images-alinux4.sh` | 在 7 个 Kubernetes 节点从 ACR VPC 端点预拉固定 Calico Linux 镜像；不执行 init/join 或安装 CNI |
+| `calico/v3.32.1/` | 固定的官方 CRD、上游 Operator 审计副本、ACR Operator 清单与实验集群 Installation 资源 |
 | `mirror-calico-images.yml` | GitHub Actions 手工工作流：将固定 Calico Linux/amd64 镜像同步到 ACR 个人版扁平仓库 |
 | `preflight-centos7.sh` | 已停用的 CentOS 7 历史体检脚本，仅保留审计上下文，不再用于当前集群 |
 
@@ -71,7 +73,9 @@
 
 - `worker-data-01` 是学生练习数据层单点；节点或本地盘故障会同时影响 MySQL、Redis 和同盘备份。
 - 当前实购的 Control Plane、Monitoring、Data 与运维节点均只有 2 GiB 内存，属于练习环境最低边缘容量：监控必须使用短保留期和低资源配置，不能直接套用企业默认值；数据层也已降低 MySQL/Redis 内存参数，并必须观察 Node MemoryPressure 与容器 OOM。
-- 当前所有节点已更换为 Alibaba Cloud Linux 4 LTS 64 位普通版；CIDR、Internal NLB、组件版本与 7 节点 Runtime 基线均已冻结并完成实测。`registry.k8s.io` 经 Google Artifact Registry 重定向后从北京节点访问超时，因此固定 kubeadm 镜像已同步到 ACR，并在全部 7 个 Kubernetes 节点完成 VPC 拉取验证。进入建群前仍需完成安全组收敛；安装 CNI 前还需同步并验证固定 Calico 镜像。
+- 当前所有节点已更换为 Alibaba Cloud Linux 4 LTS 64 位普通版；CIDR、Internal NLB、组件版本与 7 节点 Runtime 基线均已冻结并完成实测。固定 kubeadm 与 Calico 镜像均已在全部 7 个 Kubernetes 节点完成 ACR VPC 拉取验证。公网全 TCP、HTTP 80 与 RDP 3389 已移除；学生实验期经所有者接受风险后保留公网 ICMP、公网 SSH 22 和共享安全组组内互通。全部 8 台节点已经验证采用仅密钥 SSH。
+- `master-01` 已于 2026-08-14 完成真实初始化；此前的 kdump 内存门禁和主机名解析问题均已消除，API `/livez`、`/readyz` 与控制面静态 Pod 已通过验收。初始化输出中暴露的临时凭据已轮换，替换后的 Join 文件只保存在 Master 的 Root-only 目录中。
+- Calico CNI 已于 2026-08-14 安装，`master-01` 已为 `Ready`，CoreDNS、Calico 与 IPPools 均可用。`tiers` 当前因尚未创建 Calico `APIServer/default` 而降级；需先把新增的 `calico-apiserver:v3.32.1` 同步并预拉到 7 个节点、创建 API Server 资源并消除降级，再加入其他节点。
 - 企业生产仍统一使用 Alibaba Cloud RDS 和 Tair；本次 StatefulSet 只属于 `lab-*` Overlay，不构成生产高可用方案。
 - 平台控制器由平台仓库维护；应用 GitOps 仓库只管理 CloudSentinel 的 Namespace 级资源。
 - ACR 个人版固定凭证只进入 GitHub Repository Secrets 和集群密钥后端，不进入 Inventory 或 Git。

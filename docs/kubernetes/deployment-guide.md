@@ -681,6 +681,17 @@ cgroupDriver: systemd
 sudo install -m 0600 /dev/null /root/kubeadm-config.yaml
 sudo vi /root/kubeadm-config.yaml
 sudo kubeadm config validate --config /root/kubeadm-config.yaml
+sudo kubeadm init phase preflight --config /root/kubeadm-config.yaml
+```
+
+当前实验集群已经生成完成变量替换且不含 Secret 的
+[`deploy/kubernetes/kubeadm-init-master-01.yaml`](../../deploy/kubernetes/kubeadm-init-master-01.yaml)。
+先把它传到 `master-01` 的 `/root/kubeadm-config.yaml`，设置为 `0600`，完成配置校验和初始化预检；
+只有两项均通过后，才执行带 `--upload-certs` 的真实初始化。Bootstrap Token 与 Certificate Key
+属于短期 Secret，只能保留在受控终端和密码管理器中，不得写回 Git。
+
+```bash
+# 仅在配置校验、Preflight 和人工复核全部通过后执行；本步骤会真实创建集群。
 sudo kubeadm init --config /root/kubeadm-config.yaml --upload-certs
 ```
 
@@ -745,22 +756,42 @@ kubectl get nodes
 3. 确认 Operator Installation CR 的字段适用于该 Release。
 4. 把 Release Tag 写入 `CALICO_VERSION`；不要使用浮动分支 URL。
 
-Calico 官方推荐 Operator 管理安装生命周期。下载并检查固定版本 Manifest：
+Calico 官方推荐 Operator 管理安装生命周期。CloudSentinel 已把固定版本资源保存在
+`deploy/kubernetes/calico/v3.32.1/`，因此目标节点安装时不依赖 GitHub 网络。来源与用途如下：
+
+- `v1_crd_projectcalico_org.yaml`：Calico `v3.32.1` 官方 CRD 原件。
+- `tigera-operator.upstream.yaml`：官方 Operator 原件，仅用于审计，不直接安装。
+- `tigera-operator-acr.yaml`：只把 Operator 镜像替换为 ACR VPC 镜像。
+- `installation.yaml`：固定 Pod CIDR、VXLAN、关闭 BGP 和 ACR 扁平仓库布局。
+- `apiserver.yaml`：启用 Calico API Server，使策略 Tier 状态收敛。
+
+将上述目录中的五个 YAML 文件原名上传到 Master 的 `/root/calico-v3.32.1/`。上传后核对：
 
 ```bash
-mkdir -p "$HOME/calico-${CALICO_VERSION}"
-cd "$HOME/calico-${CALICO_VERSION}"
+cd /root/calico-v3.32.1
 
-curl -fL -o calico-crds.yaml \
-  "https://raw.githubusercontent.com/projectcalico/calico/${CALICO_VERSION}/manifests/v1_crd_projectcalico_org.yaml"
-curl -fL -o tigera-operator.yaml \
-  "https://raw.githubusercontent.com/projectcalico/calico/${CALICO_VERSION}/manifests/tigera-operator.yaml"
+sha256sum \
+  v1_crd_projectcalico_org.yaml \
+  tigera-operator.upstream.yaml \
+  tigera-operator-acr.yaml \
+  installation.yaml \
+  apiserver.yaml
 
-grep -n 'image:' tigera-operator.yaml
-sha256sum calico-crds.yaml tigera-operator.yaml
+grep -n 'image:' tigera-operator-acr.yaml
+diff -u tigera-operator.upstream.yaml tigera-operator-acr.yaml || true
 ```
 
-Checksum 应与组织审批记录或自行建立的可信制品清单比较，不能只记录后继续。
+五个期望 SHA256 依次为：
+
+```text
+192f8b2d934ef24b62e86b7e1a6e1762d1c8af26a916f78057bc13fa5ed60f71
+f18e073794207d372606bc3ea6f8fd73972f86d6828f4ba666dfe0d4aa8ab07f
+e3047a96df3f1571776548df62c18f1157bbe050007230a957054b0c1cf03a93
+94be98e709aa1ff49fa01d10876f147dea550600c76bc2b288390eaf87491740
+b77b52908dc08746fc064ec0b3c3bfb84ec2685a17e5a3a8f726da48ca001808
+```
+
+`diff` 必须只显示一处 Operator 镜像替换；Checksum 不一致时停止安装。
 
 当前北京实验集群无法稳定访问外部容器仓库，必须先执行
 `.github/workflows/mirror-calico-images.yml`，将固定的 Linux/amd64 镜像同步到
@@ -777,24 +808,24 @@ calico-csi
 calico-node-driver-registrar
 calico-pod2daemon-flexvol
 calico-key-cert-provisioner
+calico-apiserver
 ```
 
 这些仓库只承载固定的官方系统镜像，不得上传 Secret 或业务数据。工作流成功后，
 在 7 个 Kubernetes 节点逐台执行 `prepare-calico-images-alinux4.sh`，并确认每台均返回
 `CALICO_IMAGE_PREPARE_RESULT=PASS`。`ops-storage` 不加入集群，禁止执行该脚本。
 
-工作流成功后，
-将 `tigera-operator.yaml` 中唯一的 Operator 镜像替换为：
+项目中的 `tigera-operator-acr.yaml` 已将唯一的 Operator 镜像替换为：
 
 ```text
 crpi-1s64ln3ptbvgkqof-vpc.cn-beijing.personal.cr.aliyuncs.com/cloudsentinel0306/calico-operator:v1.42.3
 ```
 
-替换后必须用 `grep -n 'image:' tigera-operator.yaml` 确认 Manifest 中不再引用
+安装前必须用 `grep -n 'image:' tigera-operator-acr.yaml` 确认 Manifest 中不再引用
 `quay.io`。ACR 仓库当前为公开拉取，因此不在集群创建固定 Registry Secret；若以后
 切换为私有仓库，必须在 `tigera-operator` Namespace 配置专用 ImagePullSecret。
 
-**创建 `calico-installation.yaml`**：
+项目已固定 `installation.yaml`，其有效配置为：
 
 ```yaml
 apiVersion: operator.tigera.io/v1
@@ -811,26 +842,32 @@ spec:
     ipPools:
       - name: default-ipv4-ippool
         blockSize: 26
-        cidr: "<POD_CIDR>"
+        cidr: 10.244.0.0/16
         encapsulation: VXLAN
         natOutgoing: Enabled
         nodeSelector: all()
 ```
 
-真正执行前用目标 Release 的 Installation API Reference 校验字段，然后应用：
+真正执行前用目标 Release 的 Installation API Reference 校验字段，然后首次创建：
 
 ```bash
-kubectl apply -f calico-crds.yaml
-kubectl apply -f tigera-operator.yaml
+export KUBECONFIG=/etc/kubernetes/admin.conf
+cd /root/calico-v3.32.1
+
+kubectl create -f v1_crd_projectcalico_org.yaml
+kubectl create -f tigera-operator-acr.yaml
 kubectl wait --for=condition=Available deployment/tigera-operator \
   -n tigera-operator --timeout=180s
-kubectl apply -f calico-installation.yaml
+kubectl create -f installation.yaml
+kubectl create -f apiserver.yaml
 
 kubectl get tigerastatus
 kubectl get pods -n tigera-operator -o wide
 kubectl get pods -n calico-system -o wide
 kubectl get ippools.crd.projectcalico.org -o yaml
 ```
+
+`APIServer/default` 会部署 Calico API Server，使 Tier 控制器收敛。自定义仓库环境必须先同步并预拉 `quay.io/calico/apiserver:v3.32.1` 到 `calico-apiserver:v3.32.1`；否则不得创建该资源。最终所有 `tigerastatus` 都必须为 `Available=True`、`Degraded=False`。
 
 **命令作用**：Operator 创建并管理 Calico 组件；Installation CR 设置 VXLAN、禁用 BGP，并使用与 kubeadm 相同的 Pod CIDR。
 
