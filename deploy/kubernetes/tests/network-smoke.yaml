@@ -1,0 +1,149 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cloudsentinel-smoke
+  labels:
+    purpose: cluster-acceptance
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: smoke-server-content
+  namespace: cloudsentinel-smoke
+data:
+  index.html: |
+    cloudsentinel-network-smoke
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: smoke-server
+  namespace: cloudsentinel-smoke
+  labels:
+    app: smoke-server
+spec:
+  automountServiceAccountToken: false
+  nodeSelector:
+    kubernetes.io/hostname: worker-app-02
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 65534
+    runAsGroup: 65534
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: server
+      image: crpi-1s64ln3ptbvgkqof-vpc.cn-beijing.personal.cr.aliyuncs.com/cloudsentinel0306/cloudsentinel-toolbox:1.37.0
+      imagePullPolicy: Never
+      command: ["httpd", "-f", "-p", "8080", "-h", "/www"]
+      ports:
+        - name: http
+          containerPort: 8080
+      resources:
+        requests:
+          cpu: 5m
+          memory: 8Mi
+        limits:
+          cpu: 50m
+          memory: 32Mi
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop: ["ALL"]
+      volumeMounts:
+        - name: www
+          mountPath: /www
+  volumes:
+    - name: www
+      configMap:
+        name: smoke-server-content
+  restartPolicy: Never
+  terminationGracePeriodSeconds: 1
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: smoke-server
+  namespace: cloudsentinel-smoke
+spec:
+  selector:
+    app: smoke-server
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: smoke-client-allowed
+  namespace: cloudsentinel-smoke
+  labels:
+    access: allowed
+spec:
+  automountServiceAccountToken: false
+  nodeSelector:
+    kubernetes.io/hostname: worker-app-01
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 65534
+    runAsGroup: 65534
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: client
+      image: crpi-1s64ln3ptbvgkqof-vpc.cn-beijing.personal.cr.aliyuncs.com/cloudsentinel0306/cloudsentinel-toolbox:1.37.0
+      imagePullPolicy: Never
+      command: ["sh", "-c", "exec sleep 3600"]
+      resources:
+        requests:
+          cpu: 5m
+          memory: 8Mi
+        limits:
+          cpu: 50m
+          memory: 32Mi
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop: ["ALL"]
+  restartPolicy: Never
+  terminationGracePeriodSeconds: 1
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: smoke-client-denied
+  namespace: cloudsentinel-smoke
+  labels:
+    access: denied
+spec:
+  automountServiceAccountToken: false
+  nodeSelector:
+    kubernetes.io/hostname: worker-app-01
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 65534
+    runAsGroup: 65534
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: client
+      image: crpi-1s64ln3ptbvgkqof-vpc.cn-beijing.personal.cr.aliyuncs.com/cloudsentinel0306/cloudsentinel-toolbox:1.37.0
+      imagePullPolicy: Never
+      command: ["sh", "-c", "exec sleep 3600"]
+      resources:
+        requests:
+          cpu: 5m
+          memory: 8Mi
+        limits:
+          cpu: 50m
+          memory: 32Mi
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop: ["ALL"]
+  restartPolicy: Never
+  terminationGracePeriodSeconds: 1

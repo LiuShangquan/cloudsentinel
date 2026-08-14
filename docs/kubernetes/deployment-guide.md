@@ -889,6 +889,10 @@ kubectl describe tigerastatus calico
 
 **执行节点**：生成凭证在 `[master-01]`；Join 在 `[仅 master-02]`。
 
+`master-02` 与 `master-01` 同为 2 GiB 实验规格。Join 前必须确认 kdump/crashkernel 不再预留 192 MiB、`MemTotal` 高于 kubeadm 的 1700 MB 门禁、本机主机名解析到私网 IP、containerd/CRI 正常、Calico API Server 镜像已从 ACR VPC 端点预拉。不得使用 `--ignore-preflight-errors=Mem`。
+
+Control Plane Join 文件只能通过受控 SFTP/SCP 临时传到 `/root/control-plane-join.sh`，权限必须为 `0600`；不得 `cat`、粘贴到聊天、写入 Shell History 或提交 Git。Join 完成后删除目标节点临时副本；`master-01` 上的原件保留到 `master-03` 成功加入。
+
 如果原 Token 过期，在 master-01 重新生成：
 
 ```bash
@@ -961,6 +965,8 @@ kubectl get --raw='/readyz?verbose'
 
 **失败时看哪里**：与第 19 节一致。不要因第三个节点失败而操作已有健康 Master 的 `/var/lib/etcd`。
 
+**当前实验集群证据（2026-08-14）**：`master-02` 与 `master-03` 均已 Ready，三台 Control Plane 静态 Pod 正常，stacked etcd 的 3 个 Member 均为 `started`。`master-03` Join 曾在 `kubelet-wait-bootstrap` 阶段被操作者中断，但 kubelet CSR 已批准签发，Node、静态 Pod、etcd 与 Calico 随后完成收敛；缺失的 `control-plane` Label 与默认 `NoSchedule` Taint 已补齐。遇到同类中断时必须先检查 Node、CSR、静态 Pod 与 etcd Member，不得直接执行 `kubeadm reset` 或重复完整 Join。
+
 ## 21. 加入 Worker
 
 **目标**：逐台加入 4 个 Worker。
@@ -995,6 +1001,8 @@ kubectl get pods -n calico-system -o wide
 
 **失败时看哪里**：Node 上 `journalctl -u kubelet/containerd`，Cluster 中 `kubectl describe node`、CSR、Calico Pod/Event、NLB 6443 和 UDP 4789。
 
+**当前实验集群证据（2026-08-14）**：`worker-app-01`、`worker-app-02`、`worker-monitor` 与 `worker-data-01` 均已 Ready；每个 Worker 上的 `calico-node`、CSI Node Driver 与 `kube-proxy` 均已 Running。
+
 ## 22. 配置 Labels
 
 **目标**：为未来 Workload 提供稳定的 Node Selection 维度。
@@ -1011,6 +1019,8 @@ kubectl label node worker-data-01 node-role=data
 ```
 
 重复执行需要修改值时，先审查再使用 `--overwrite`，不要默认覆盖。
+
+当前实验集群已完成上述 4 个 Label 验收。
 
 **命令作用**：Label 为 Scheduler 的 `nodeSelector`/Affinity 提供可查询属性。
 
@@ -1041,6 +1051,8 @@ kubectl describe node worker-monitor | grep -A2 Taints
 kubectl describe node worker-data-01 | grep -A2 Taints
 kubectl describe node master-01 | grep -A2 Taints
 ```
+
+当前实验集群已验证 `worker-monitor` 的 `dedicated=monitoring:NoSchedule`、`worker-data-01` 的 `dedicated=data:NoSchedule`，以及三台 Control Plane 的 `node-role.kubernetes.io/control-plane:NoSchedule`。
 
 不得删除 `node-role.kubernetes.io/control-plane:NoSchedule`。
 
@@ -1112,6 +1124,15 @@ kubectl rollout status deployment/coredns -n kube-system --timeout=180s
 
 **执行节点**：`[运维终端]`。
 
+当前实验集群的可执行资产为：
+
+- `.github/workflows/mirror-cluster-test-images.yml`：把固定 `busybox:1.37.0` Linux/amd64 镜像同步到 ACR 并输出目标 digest；
+- `deploy/kubernetes/prepare-cluster-test-image-alinux4.sh`：使用该 digest 在 `worker-app-01/02` 预拉并校验镜像；
+- `deploy/kubernetes/tests/network-smoke.yaml` 与 `network-policy-smoke.yaml`：固定到两个 App Worker，且使用 `imagePullPolicy: Never`；
+- `deploy/kubernetes/run-cluster-network-smoke.sh`：依次验证跨节点 Pod IP、ClusterIP、EndpointSlice、DNS 和 NetworkPolicy，全部通过后删除临时 Namespace；失败时保留现场。
+
+以下内联 YAML 仅作为通用设计模板；当前实验集群应执行上述固定资产，不得直接保留或替换占位镜像。
+
 **测试 YAML**：
 
 ```yaml
@@ -1170,6 +1191,8 @@ kubectl delete -f pod-network-test.yaml
 **目标**：证明 Client Pod 可以通过 ClusterIP 和 EndpointSlice 访问 Backend Pod。
 
 **执行节点**：`[运维终端]`。
+
+当前实验集群由第 25 节的固定 Smoke 脚本同时完成本节验收；以下 YAML 仅为通用参考。
 
 **最小 YAML**：
 
@@ -1243,6 +1266,8 @@ kubectl delete -f service-network-test.yaml
 
 **执行节点**：`[运维终端]`。
 
+当前实验集群由第 25 节的固定 Smoke 脚本同时解析 `kubernetes.default.svc.cluster.local` 与临时测试 Service；以下 YAML 仅为通用参考。
+
 创建固定版本的 DNS Tool Pod：
 
 ```yaml
@@ -1286,6 +1311,8 @@ kubectl delete -f dns-test.yaml
 **目标**：证明 Calico 实际执行 Default Deny 与显式 Allow Policy。
 
 **执行节点**：`[运维终端]`。
+
+当前实验集群由第 25 节的固定 Smoke 脚本先验证无 Policy 时连通，再应用 `tests/network-policy-smoke.yaml`，断言带 `access=allowed` 的 Client 可访问且另一个 Client 被阻断。失败时保留 Namespace，成功时自动清理。
 
 **测试流程**：使用专用 Namespace，先验证无 Policy 时可访问，再应用 Default Deny，最后只允许带 `access=allowed` 的 Client。
 

@@ -37,8 +37,10 @@
 - 全部 8 台节点已于 2026-08-13 完成 `sshd -T` 有效配置核验：密码认证与键盘交互认证关闭，公钥认证启用；当前 `PermitRootLogin yes` 在上述组合下仍为仅密钥登录，后续收紧为 `prohibit-password` 作为实验环境延后加固项记录。
 - 已生成不含 Bootstrap Token、Certificate Key 或其他 Secret 的 `deploy/kubernetes/kubeadm-init-master-01.yaml`，并已完成配置校验、初始化预检和真实初始化。
 - `master-01` 已验证初始化配置 SHA256 一致、权限为 `0600`，且 `kubeadm config validate` 通过；控制平面端口空闲，历史 PKI、Manifest 与 etcd 状态均不存在。首次 Preflight 没有创建集群，但因操作系统可见内存仅 `1671 MB`、低于 kubeadm 的 `1700 MB` 硬门槛而终止，同时发现 `master-01` 无法由当前 Resolver 解析。必须先恢复主机名解析并解决内存容量，不得直接忽略 `Mem` 门禁。
-- 已确认首次内存失败由 kdump/crashkernel 预留 `192 MB` 引起；实验环境释放该预留后，第二次 `kubeadm init phase preflight` 已通过，日志为 `/root/kubeadm-preflight-master-01-second.log`。containerd 1.7 RuntimeConfig 兼容性提示仍为非致命警告；当前仅剩 `master-01` 私网主机名解析需要通过 `getent hosts master-01` 验证，真实 `kubeadm init` 尚未执行。
-- `master-01` 私网主机名解析已补齐，最终 Preflight 不再出现 Hostname 警告并以 `preflight_rc=0` 通过，日志为 `/root/kubeadm-preflight-master-01-final.log`。所有真实初始化前置门禁均已满足，Inventory 已切换为 `deployment_ready: true`；`kubeadm init` 仍尚未执行。
+- 已确认首次内存失败由 kdump/crashkernel 预留 `192 MB` 引起；实验环境释放该预留后，第二次 `kubeadm init phase preflight` 已通过，日志为 `/root/kubeadm-preflight-master-01-second.log`。containerd 1.7 RuntimeConfig 兼容性提示仍为非致命警告。
+- `master-01` 私网主机名解析已补齐，最终 Preflight 不再出现 Hostname 警告并以 `preflight_rc=0` 通过，日志为 `/root/kubeadm-preflight-master-01-final.log`；该结果曾作为后续真实初始化的放行证据。
 - `master-01` 已于 2026-08-14 成功完成 `kubeadm init --upload-certs`，日志为 `/root/kubeadm-init-master-01-20260814T113659.log`。API `/livez` 与 `/readyz` 均返回 `ok`，静态控制面组件正常；CNI 安装前 Node `NotReady` 与 CoreDNS `Pending` 属于预期状态。
 - 初始化输出中暴露的 Bootstrap Token 已失效，控制面证书已使用新 Key 重新上传，并在 `/root/cloudsentinel-current-credential-dir` 指向的权限 `0600` 目录中生成新的短期 Join 文件。旧凭据不得再次使用，新的 Join 文件也不得复制到 Git、聊天或工单。
-- Calico `v3.32.1` 已安装，`master-01`、CoreDNS、Calico 与 IPPools 均已健康。`tiers` TigeraStatus 仍因没有创建 `APIServer/default` 而显示 `Degraded=True`；在加入其他节点前，必须补齐并预拉 `calico-apiserver:v3.32.1`、创建 APIServer 资源并确认所有 TigeraStatus 收敛。
+- Calico `v3.32.1` 与 `APIServer/default` 已安装；`apiserver`、`calico`、`ippools`、`tiers` 四个 TigeraStatus 均为 `Available=True`、`Degraded=False`，两副本 Calico API Server 与 CoreDNS 均健康。
+- 2026-08-14 已完成 `master-02`、`master-03` 和 4 个 Worker 的逐台 Join：7 个 Kubernetes 节点均为 Ready，stacked etcd 的 3 个 Member 均为 `started`。`master-03` 的 Join 在 TLS Bootstrap 等待阶段被操作者中断，但 kubelet、控制面静态 Pod、etcd 与 Calico 已完成收敛；随后补齐了 `control-plane` Label 与默认 `NoSchedule` Taint。
+- `worker-app-01/02` 已设置 `node-role=app`；`worker-monitor` 已设置 `node-role=monitoring` 与 `dedicated=monitoring:NoSchedule`；`worker-data-01` 已设置 `node-role=data` 与 `dedicated=data:NoSchedule`。下一门禁是集群级 HA、跨节点 Pod、Service、DNS、NetworkPolicy、资源压力与 NLB 后端健康验收；这些检查通过前不进入 Argo CD 和业务 GitOps 同步。

@@ -54,8 +54,12 @@
 | `preflight-alinux4.sh` | Alibaba Cloud Linux 4 八节点只读体检；不安装软件、不加载模块、不修改系统 |
 | `prepare-kubernetes-images-alinux4.sh` | 在 7 个 Kubernetes 节点从 ACR VPC 端点预拉固定 kubeadm 镜像，并对齐 containerd Pause 镜像；不执行 init/join |
 | `prepare-calico-images-alinux4.sh` | 在 7 个 Kubernetes 节点从 ACR VPC 端点预拉固定 Calico Linux 镜像；不执行 init/join 或安装 CNI |
+| `prepare-cluster-test-image-alinux4.sh` | 按工作流输出的 digest，在两个应用节点预拉并验证固定集群验收工具镜像 |
+| `run-cluster-network-smoke.sh` | 在 `master-01` 执行可回收的跨节点 Pod、ClusterIP、DNS 和 NetworkPolicy 验收 |
+| `tests/network-smoke.yaml`、`tests/network-policy-smoke.yaml` | 只用于 `cloudsentinel-smoke` 临时 Namespace 的固定验收资源；成功后删除 |
 | `calico/v3.32.1/` | 固定的官方 CRD、上游 Operator 审计副本、ACR Operator 清单与实验集群 Installation 资源 |
 | `mirror-calico-images.yml` | GitHub Actions 手工工作流：将固定 Calico Linux/amd64 镜像同步到 ACR 个人版扁平仓库 |
+| `mirror-cluster-test-images.yml` | GitHub Actions 手工工作流：将固定 BusyBox Linux/amd64 工具镜像同步到 ACR，并输出目标 digest |
 | `preflight-centos7.sh` | 已停用的 CentOS 7 历史体检脚本，仅保留审计上下文，不再用于当前集群 |
 
 ## 部署前必须准备的信息
@@ -73,9 +77,10 @@
 
 - `worker-data-01` 是学生练习数据层单点；节点或本地盘故障会同时影响 MySQL、Redis 和同盘备份。
 - 当前实购的 Control Plane、Monitoring、Data 与运维节点均只有 2 GiB 内存，属于练习环境最低边缘容量：监控必须使用短保留期和低资源配置，不能直接套用企业默认值；数据层也已降低 MySQL/Redis 内存参数，并必须观察 Node MemoryPressure 与容器 OOM。
-- 当前所有节点已更换为 Alibaba Cloud Linux 4 LTS 64 位普通版；CIDR、Internal NLB、组件版本与 7 节点 Runtime 基线均已冻结并完成实测。固定 kubeadm 与 Calico 镜像均已在全部 7 个 Kubernetes 节点完成 ACR VPC 拉取验证。公网全 TCP、HTTP 80 与 RDP 3389 已移除；学生实验期经所有者接受风险后保留公网 ICMP、公网 SSH 22 和共享安全组组内互通。全部 8 台节点已经验证采用仅密钥 SSH。
+- 当前所有节点已更换为 Alibaba Cloud Linux 4 LTS 64 位普通版；CIDR、Internal NLB、组件版本与 7 节点 Runtime 基线均已冻结并完成实测。固定 kubeadm 与 Calico 核心镜像已在全部 7 个 Kubernetes 节点完成 ACR VPC 拉取验证；新增的 Calico API Server 镜像已在实际调度节点 `master-01` 完成拉取验证。公网全 TCP、HTTP 80 与 RDP 3389 已移除；学生实验期经所有者接受风险后保留公网 ICMP、公网 SSH 22 和共享安全组组内互通。全部 8 台节点已经验证采用仅密钥 SSH。
 - `master-01` 已于 2026-08-14 完成真实初始化；此前的 kdump 内存门禁和主机名解析问题均已消除，API `/livez`、`/readyz` 与控制面静态 Pod 已通过验收。初始化输出中暴露的临时凭据已轮换，替换后的 Join 文件只保存在 Master 的 Root-only 目录中。
-- Calico CNI 已于 2026-08-14 安装，`master-01` 已为 `Ready`，CoreDNS、Calico 与 IPPools 均可用。`tiers` 当前因尚未创建 Calico `APIServer/default` 而降级；需先把新增的 `calico-apiserver:v3.32.1` 同步并预拉到 7 个节点、创建 API Server 资源并消除降级，再加入其他节点。
+- Calico CNI 与 `APIServer/default` 已于 2026-08-14 安装，CoreDNS、两副本 Calico API Server 均健康，`apiserver`、`calico`、`ippools`、`tiers` 四个 TigeraStatus 全部可用且无降级。同日完成 3 个 Control Plane 与 4 个 Worker 的逐台 Join：7 个 Kubernetes 节点均为 Ready，stacked etcd 的 3 个 Member 均为 `started`；应用节点、监控节点和数据节点的项目 Label/Taint 已按规划落地。下一阶段是集群级 HA、跨节点 Pod、Service、DNS、NetworkPolicy、资源压力与 NLB 后端健康验收，通过前不进入 Argo CD 和业务 GitOps 同步。
+- 集群基础状态与 CoreDNS 已通过验收。跨节点网络测试必须先由 `mirror-cluster-test-images.yml` 把固定 `busybox:1.37.0` 同步到 ACR，记录工作流输出 digest，并在两个应用节点使用准备脚本完成 digest 校验；测试 Pod 使用 `imagePullPolicy: Never`，不得临时从公网仓库拉取镜像。
 - 企业生产仍统一使用 Alibaba Cloud RDS 和 Tair；本次 StatefulSet 只属于 `lab-*` Overlay，不构成生产高可用方案。
 - 平台控制器由平台仓库维护；应用 GitOps 仓库只管理 CloudSentinel 的 Namespace 级资源。
 - ACR 个人版固定凭证只进入 GitHub Repository Secrets 和集群密钥后端，不进入 Inventory 或 Git。

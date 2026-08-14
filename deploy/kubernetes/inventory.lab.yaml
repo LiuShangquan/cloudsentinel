@@ -10,7 +10,7 @@ cluster:
     - Public TCP 22 remains reachable from 0.0.0.0/0 because the operator has no fixed public source address; all nodes must enforce key-only SSH.
     - All eight nodes temporarily share one security group with intra-group mutual access instead of role-separated least-privilege groups.
   blockers:
-    - Mirror and pre-pull the missing Calico API Server image, create APIServer/default, and clear the degraded tiers TigeraStatus before joining additional nodes.
+    - Complete cluster-wide HA, cross-node Pod, Service, DNS, NetworkPolicy, resource-pressure and NLB backend-health acceptance before starting GitOps platform deployment.
 
   control_plane_endpoint: "nlb-axdxf21jombh758m09.cn-beijing.nlb.aliyuncsslb.com:6443"
   vpc_id: vpc-2zeer06chhjz9pjq3qm3n
@@ -162,16 +162,19 @@ cluster:
       - calico-pod2daemon-flexvol
       - calico-key-cert-provisioner
       - calico-apiserver
-  calico_acr_images_mirrored: false
+  calico_acr_images_mirrored: true
   calico_core_acr_images_mirrored: true
   calico_core_acr_images_mirrored_at: "2026-08-13"
-  calico_apiserver_acr_image_mirrored: false
+  calico_apiserver_acr_image_mirrored: true
+  calico_apiserver_acr_image_mirror_verified_by_pull_at: "2026-08-14"
   calico_acr_image_mirror_workflow_run: 1
   calico_acr_image_mirror_source_commit: d830498
   calico_acr_images_pull_verified: false
   calico_core_acr_images_pull_verified: true
   calico_core_acr_images_pull_verified_at: "2026-08-13"
-  calico_apiserver_acr_image_pull_verified: false
+  calico_apiserver_acr_image_pull_verified: true
+  calico_apiserver_acr_image_pull_verified_nodes:
+    - master-01
   calico_core_acr_image_prepare_passed_nodes:
     - master-01
     - master-02
@@ -180,6 +183,16 @@ cluster:
     - worker-app-02
     - worker-monitor
     - worker-data-01
+
+  cluster_test_toolbox:
+    source_image: docker.io/library/busybox:1.37.0
+    public_push_image: crpi-1s64ln3ptbvgkqof.cn-beijing.personal.cr.aliyuncs.com/cloudsentinel0306/cloudsentinel-toolbox:1.37.0
+    vpc_pull_image: crpi-1s64ln3ptbvgkqof-vpc.cn-beijing.personal.cr.aliyuncs.com/cloudsentinel0306/cloudsentinel-toolbox:1.37.0
+    mirror_workflow: .github/workflows/mirror-cluster-test-images.yml
+    mirrored: false
+    expected_digest_recorded: false
+    application_workers_pull_verified: false
+    network_smoke_executed: false
 
   observed_os: "Alibaba Cloud Linux 4 LTS 64-bit (all eight nodes command-verified)"
   recommended_target_os: "Alibaba Cloud Linux 4 LTS 64-bit"
@@ -265,16 +278,44 @@ cluster:
     api_readyz: ok
     master_01_status_before_cni: NotReady_expected
     coredns_status_before_cni: Pending_expected
-    additional_nodes_joined: false
+    additional_nodes_joined: true
+    additional_nodes_joined_at: "2026-08-14"
+    all_seven_kubernetes_nodes_ready: true
+    control_plane_nodes_ready:
+      - master-01
+      - master-02
+      - master-03
+    worker_nodes_ready:
+      - worker-app-01
+      - worker-app-02
+      - worker-monitor
+      - worker-data-01
+    stacked_etcd_members_started: 3
+    control_plane_role_and_default_taint_verified: true
+    worker_node_roles_verified:
+      worker-app-01: app
+      worker-app-02: app
+      worker-monitor: monitoring
+      worker-data-01: data
+    dedicated_worker_taints_verified:
+      worker-monitor: dedicated=monitoring:NoSchedule
+      worker-data-01: dedicated=data:NoSchedule
+    master_03_join_interrupted_during_kubelet_wait: true
+    master_03_tls_bootstrap_recovered: true
+    master_03_control_plane_metadata_repaired: true
     cni_installed: true
     cni_installed_at: "2026-08-14"
     calico_tigerastatus_available: true
     calico_ippools_tigerastatus_available: true
     master_01_ready_after_cni: true
     coredns_available_after_cni: true
-    calico_tiers_degraded: true
-    calico_tiers_message: Waiting for Tigera API server to be ready
-    calico_apiserver_created: false
+    calico_tiers_degraded: false
+    calico_tiers_available: true
+    calico_apiserver_created: true
+    calico_apiserver_tigerastatus_available: true
+    calico_apiserver_replicas_ready_on_master_01: 2
+    all_observed_tigerastatus_available: true
+    all_observed_tigerastatus_degraded: false
 
 registry:
   public_push_endpoint: crpi-1s64ln3ptbvgkqof.cn-beijing.personal.cr.aliyuncs.com

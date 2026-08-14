@@ -46,6 +46,23 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - name: Validate cluster smoke-test assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n deploy/kubernetes/prepare-cluster-test-image-alinux4.sh
+          bash -n deploy/kubernetes/run-cluster-network-smoke.sh
+          test "$(grep -c '^kind: Pod$' deploy/kubernetes/tests/network-smoke.yaml)" -eq 3
+          test "$(grep -c 'imagePullPolicy: Never' deploy/kubernetes/tests/network-smoke.yaml)" -eq 3
+          test "$(grep -c '^kind: NetworkPolicy$' deploy/kubernetes/tests/network-policy-smoke.yaml)" -eq 2
+          test "$(grep -c 'cloudsentinel-toolbox:1.37.0' deploy/kubernetes/tests/network-smoke.yaml)" -eq 3
+          if grep -R -E 'TRUSTED_.*IMAGE|REPLACE_|<[^>]+>' \
+            deploy/kubernetes/tests \
+            deploy/kubernetes/prepare-cluster-test-image-alinux4.sh \
+            deploy/kubernetes/run-cluster-network-smoke.sh; then
+            echo 'cluster smoke-test assets contain unresolved placeholders' >&2
+            exit 1
+          fi
       - name: Render and audit Kustomize overlays
         shell: bash
         run: |

@@ -1,0 +1,80 @@
+name: mirror-cluster-test-images
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudsentinel-cluster-test-image-mirror
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      ACR_PUBLIC_REGISTRY: crpi-1s64ln3ptbvgkqof.cn-beijing.personal.cr.aliyuncs.com
+      ACR_NAMESPACE: cloudsentinel0306
+      TOOLBOX_VERSION: 1.37.0
+    steps:
+      - name: Checkout source repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - name: Validate mirror boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ github.repository_owner }}" = "${{ vars.RELEASE_ALLOWED_OWNER }}"
+          test "${{ github.event.repository.name }}" = "${{ vars.RELEASE_ALLOWED_REPOSITORY }}"
+          test "${GITHUB_REF}" = "refs/heads/main"
+          test "${TOOLBOX_VERSION}" = "1.37.0"
+          docker version
+
+      - name: Log in to ACR Personal Edition
+        env:
+          ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
+          ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${ACR_USERNAME}"
+          test -n "${ACR_PASSWORD}"
+          printf '%s' "${ACR_PASSWORD}" |
+            docker login "${ACR_PUBLIC_REGISTRY}" \
+              --username "${ACR_USERNAME}" \
+              --password-stdin
+
+      - name: Mirror pinned cluster toolbox for linux amd64
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          source="docker.io/library/busybox:${TOOLBOX_VERSION}"
+          target="${ACR_PUBLIC_REGISTRY}/${ACR_NAMESPACE}/cloudsentinel-toolbox:${TOOLBOX_VERSION}"
+
+          docker pull --platform linux/amd64 "${source}"
+          platform="$(docker image inspect \
+            --format '{{.Os}}/{{.Architecture}}' "${source}")"
+          test "${platform}" = 'linux/amd64'
+
+          docker tag "${source}" "${target}"
+          push_output="$(docker push "${target}" 2>&1 | tee /dev/stderr)"
+          digest="$(printf '%s\n' "${push_output}" |
+            sed -nE 's/.*digest: (sha256:[0-9a-f]{64}).*/\1/p' |
+            tail -n 1)"
+          [[ "${digest}" =~ ^sha256:[0-9a-f]{64}$ ]]
+
+          {
+            echo '## Mirrored cluster test image'
+            echo
+            echo '| Source | Target | Platform | Digest |'
+            echo '|---|---|---|---|'
+            printf '| `%s` | `%s` | `%s` | `%s` |\n' \
+              "${source}" "${target}" "${platform}" "${digest}"
+          } >>"${GITHUB_STEP_SUMMARY}"
+
+      - name: Log out of ACR
+        if: always()
+        run: docker logout "${ACR_PUBLIC_REGISTRY}" || true
