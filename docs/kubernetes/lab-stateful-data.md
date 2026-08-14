@@ -36,8 +36,8 @@ kubectl describe node worker-data-01 | sed -n '/Taints:/,/Unschedulable:/p'
 - 节点真实名称恰好是 `worker-data-01`；
 - Label 为 `node-role=data`；
 - Taint 为 `dedicated=data:NoSchedule`；
-- 集群已安装 Argo CD/ApplicationSet、External Secrets Operator v1、Metrics Server 与支持 NetworkPolicy 的 Calico；
-- ACR 中已手工创建五个私有仓库，包括 `cloudsentinel-mysql` 与 `cloudsentinel-redis`。
+- 集群已安装 Argo CD/ApplicationSet、External Secrets Operator v1 API、Metrics Server 与支持 NetworkPolicy 的 Calico；当前 ESO 控制器固定为与 Kubernetes `1.35` 对齐的 `v2.8.0`；
+- ACR 中已手工创建业务、数据和平台所需私有仓库；数据层至少包括 `cloudsentinel-mysql` 与 `cloudsentinel-redis`，ESO 安装还需要 `cloudsentinel-external-secrets`。
 
 若 Label/Taint 尚未设置，应回到 `deployment-guide.md` 的节点隔离步骤，核对后手工执行，不要修改 GitOps 清单绕过隔离。
 
@@ -58,7 +58,20 @@ sudo stat -c '%U:%G %a %n' /var/lib/cloudsentinel/mysql /var/lib/cloudsentinel/r
 
 预期 UID/GID 为 `999:999`、权限为 `700`。若 SELinux 拒绝容器访问，不要关闭 SELinux；先查看 AVC，再为专用目录建立经过确认的持久化文件上下文。
 
+2026-08-14 的真实集群证据已确认：`worker-data-01` 根文件系统为 40 GiB ext4、准备时可用约 32 GiB，容量门禁通过；三个目录已创建并返回 `LOCAL_PV_DIRECTORY_PREPARE=PASS`。这只证明宿主机存储准备完成，不代表 PV/PVC、StatefulSet 或备份已经部署。
+
 ## 4. 创建源 Secret
+
+创建源 Secret 前必须先完成 ESO 平台控制器安装：
+
+1. 在 ACR 手工创建私有仓库 `cloudsentinel-external-secrets`；
+2. 从源码仓库 `main` 手工运行 `mirror-external-secrets-image`；
+3. 下载 `external-secrets-v2.8.0-linux-amd64` Artifact，核对工作流成功状态和 Artifact 校验文件；
+4. 在 `external-secrets` Namespace 创建 `platform-acr-registry` Pull Secret；
+5. 把 Artifact 与 `deploy/kubernetes/install-external-secrets.sh` 上传到 `master-01`，确认路径后手工执行安装；
+6. 仅当三个 ESO Deployment 可用且 `external-secrets.io/v1` CRD 存在后，才应用 `bootstrap/secret-store`。
+
+ESO 安装脚本不会创建下面的业务源 Secret；两类权限边界不得合并。
 
 不要把密码写入 Git、聊天、工单或 Shell 历史。推荐在 `ops-storage` 上创建权限为 `600` 的临时 env 文件，通过交互式编辑器填值。所有数据层密码必须是 32–128 位 `[A-Za-z0-9_-]`；JWT、Webhook Token 与两个环境密码必须彼此不同。
 

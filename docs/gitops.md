@@ -21,9 +21,11 @@ Source main -> Repository Secrets 固定凭证 -> ACR 个人版公网端点
 
 平台团队应先在目标集群提供：Argo CD/ApplicationSet、ingress-nginx、cert-manager、External Secrets Operator、Metrics Server 与 Prometheus。CRD 和 ClusterRole 属于平台仓库，CloudSentinel AppProject 无权安装它们。
 
+当前学生集群先安装 External Secrets Operator `v2.8.0`；官方兼容矩阵覆盖 Kubernetes `1.35-1.36`，与集群 `v1.35.7` 对齐。由于北京节点不能稳定访问 GHCR，必须先运行 `mirror-external-secrets-image`，把唯一的 `linux/amd64` 上游镜像同步到私有仓库 `cloudsentinel-external-secrets`。工作流会校验官方发布清单 SHA256，并生成按 ACR VPC digest 固定的离线安装 Artifact；不得让节点直接套用上游公网安装命令。
+
 还需准备：
 
-- 北京 ACR 个人版实例 `crpi-1s64ln3ptbvgkqof`，命名空间 `cloudsentinel0306`，五个私有 Repository：`cloudsentinel-api`、`cloudsentinel-worker`、`cloudsentinel-migrate`、`cloudsentinel-mysql`、`cloudsentinel-redis`；
+- 北京 ACR 个人版实例 `crpi-1s64ln3ptbvgkqof`，命名空间 `cloudsentinel0306`，至少包含业务、数据和平台使用的私有 Repository：`cloudsentinel-api`、`cloudsentinel-worker`、`cloudsentinel-migrate`、`cloudsentinel-mysql`、`cloudsentinel-redis`、`cloudsentinel-external-secrets`；
 - 当前学生集群使用 `worker-data-01` 上的单副本 MySQL/Redis StatefulSet；正式企业生产切换为 RDS/Tair 后再准备私网 Endpoint、多可用区和托管备份；
 - 只安装在 GitOps 仓库的 GitHub App，权限限定为 Contents 读写和 Pull Requests 读写；
 - GitHub Repository Secrets：`ACR_USERNAME`、`ACR_PASSWORD`、`GITOPS_APP_PRIVATE_KEY`；

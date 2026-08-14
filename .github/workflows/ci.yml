@@ -52,6 +52,7 @@ jobs:
           set -euo pipefail
           bash -n deploy/kubernetes/prepare-cluster-test-image-alinux4.sh
           bash -n deploy/kubernetes/run-cluster-network-smoke.sh
+          bash -n deploy/kubernetes/install-external-secrets.sh
           test "$(grep -c '^kind: Pod$' deploy/kubernetes/tests/network-smoke.yaml)" -eq 3
           test "$(grep -c 'imagePullPolicy: Never' deploy/kubernetes/tests/network-smoke.yaml)" -eq 3
           test "$(grep -c '^kind: NetworkPolicy$' deploy/kubernetes/tests/network-policy-smoke.yaml)" -eq 2
@@ -59,10 +60,15 @@ jobs:
           if grep -R -E 'TRUSTED_.*IMAGE|REPLACE_|<[^>]+>' \
             deploy/kubernetes/tests \
             deploy/kubernetes/prepare-cluster-test-image-alinux4.sh \
-            deploy/kubernetes/run-cluster-network-smoke.sh; then
+            deploy/kubernetes/run-cluster-network-smoke.sh \
+            deploy/kubernetes/install-external-secrets.sh; then
             echo 'cluster smoke-test assets contain unresolved placeholders' >&2
             exit 1
           fi
+          grep -Fq 'EXPECTED_VERSION="v2.8.0"' \
+            deploy/kubernetes/install-external-secrets.sh
+          grep -Fq '7d1533a7ace1f0ee9a21ac2215665e8f5856690ca7b224961df2011ff735d572' \
+            deploy/kubernetes/install-external-secrets.sh
       - name: Render and audit Kustomize overlays
         shell: bash
         run: |
