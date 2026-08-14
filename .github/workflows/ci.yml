@@ -69,6 +69,8 @@ jobs:
             deploy/kubernetes/install-external-secrets.sh
           grep -Fq '7d1533a7ace1f0ee9a21ac2215665e8f5856690ca7b224961df2011ff735d572' \
             deploy/kubernetes/install-external-secrets.sh
+          grep -Fq -- '--dns-name=external-secrets-webhook.external-secrets.svc' \
+            deploy/kubernetes/install-external-secrets.sh
       - name: Render and audit Kustomize overlays
         shell: bash
         run: |
