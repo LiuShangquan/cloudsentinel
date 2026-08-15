@@ -48,7 +48,9 @@ ACR 个人版不提供企业版临时登录流程。固定 Registry 密码不得
 5. Production 目录保留平台和应用双重审阅要求，但在 GitHub Free 私有仓库中这是流程约束而非平台强制；GitHub App 只创建分支和 PR，不直接更新 `main`。
 6. 将独立仓库以只读 Deploy Key 或 GitHub App 接入 Argo CD，然后由平台管理员应用 `bootstrap/argocd`。使用 Deploy Key 时必须关闭写权限，并统一使用 SSH 地址 `git@github.com:LiuShangquan/cloudsentinel-gitops.git`；不得把私钥写入 Git。
 
-Argo CD 项目允许 Staging、Production 和 `cloudsentinel-data` 三个 Namespace，以及数据层所需的 PV/StorageClass/StatefulSet/CronJob。独立 Secret ApplicationSet 先物化 ExternalSecret；数据 Application 自动 Self-Heal 但禁用 Prune，也不配置资源级联删除 Finalizer；Staging 应用开启 Prune/Self-Heal；Production 应用默认需要人工 Sync。
+Argo CD 项目允许 Staging、Production 和 `cloudsentinel-data` 三个 Namespace，以及数据层所需的 PV/StorageClass/StatefulSet/CronJob。独立 Secret ApplicationSet 先物化 ExternalSecret，并为生成的 Application 启用 `ServerSideDiff=true`，避免 External Secrets Webhook 默认化字段形成持续漂移；数据 Application 自动 Self-Heal 但禁用 Prune，也不配置资源级联删除 Finalizer；Staging 应用开启 Prune/Self-Heal；Production 应用默认需要人工 Sync。
+
+学生集群保留上述同步语义，但受三个 2 GiB Control Plane 的容量约束，Argo CD Application Controller 状态处理器、操作处理器、`kubectl` 并发和 Repo Server 清单生成并发均固定为 `1`。这是容量限流而不是功能降级；扩大应用规模或迁移到企业生产集群时必须重新压测后调整。
 
 ## 4. ExternalSecret 数据契约
 
@@ -92,4 +94,4 @@ Registry 远端对象提供完整 `.dockerconfigjson`，其中认证服务器必
 
 同步前确认集群和 ACR 均位于 `cn-beijing`，数据节点目录已准备、所有 `ExternalSecret` Ready、ACR VPC Pull Secret 有效、两个 StatefulSet Ready、Bootstrap Job 成功且逻辑备份可写。当前 `lab-*` Overlay 不含 Ingress，因此不需要先准备域名。PreSync Job 失败时 Argo CD 不会更新应用；先检查 Job 退出码、MySQL 账户和数据层健康，不要跳过 Hook 手工滚动 Deployment。
 
-真实 ACR VPC 镜像拉取、External Secrets `v2.8.0`、Kubernetes Provider `ClusterSecretStore` 与受控源 Secret 已在 2026-08-15 验证。Argo CD `v3.5.0` 镜像同步与安装、GitOps 仓库只读接入、StatefulSet、PV/PVC、备份、业务发布、Ingress 和证书仍为 `NOT VERIFIED`，必须按顺序取得运行时证据后再更新状态。
+真实 ACR VPC 镜像拉取、External Secrets `v2.8.0`、Kubernetes Provider `ClusterSecretStore`、受控源 Secret、Argo CD `v3.5.0` 安装和 GitOps 仓库只读接入已在 2026-08-15 验证。三个 Secret Application 已成功物化 ExternalSecret；其中 `cloudsentinel-secrets-data-lab` 已通过 Server-Side Diff 确认达到 `Synced/Healthy`，Staging 与 Production 仍需完成相同的硬刷新验收。StatefulSet、PV/PVC、备份、业务发布、Ingress 和证书仍为 `NOT VERIFIED`，必须按顺序取得运行时证据后再更新状态。

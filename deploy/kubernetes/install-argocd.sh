@@ -16,7 +16,7 @@ readonly EXPECTED_STORE="cloudsentinel-secret-store"
 readonly EXPECTED_ARGOCD_IMAGE_ROOT="crpi-1s64ln3ptbvgkqof-vpc.cn-beijing.personal.cr.aliyuncs.com/cloudsentinel0306/cloudsentinel-argocd"
 readonly EXPECTED_DEX_IMAGE_ROOT="crpi-1s64ln3ptbvgkqof-vpc.cn-beijing.personal.cr.aliyuncs.com/cloudsentinel0306/cloudsentinel-argocd-dex"
 readonly EXPECTED_REDIS_IMAGE_ROOT="crpi-1s64ln3ptbvgkqof-vpc.cn-beijing.personal.cr.aliyuncs.com/cloudsentinel0306/cloudsentinel-argocd-redis"
-readonly SCRIPT_REVISION="2026-08-15.1"
+readonly SCRIPT_REVISION="2026-08-15.2"
 
 apply=false
 bundle_dir=""
@@ -197,6 +197,14 @@ kubectl kustomize "${bundle_dir}" >"${rendered_file}"
 	die "expected one Argo CD StatefulSet"
 [[ "$(grep -c 'node-role: app' "${rendered_file}")" -eq 7 ]] ||
 	die "all seven Argo CD workloads must target app nodes"
+for expected_parameter in \
+	'controller.status.processors: "1"' \
+	'controller.operation.processors: "1"' \
+	'controller.kubectl.parallelism.limit: "1"' \
+	'reposerver.parallelism.limit: "1"'; do
+	grep -Fq "${expected_parameter}" "${rendered_file}" ||
+		die "rendered bundle is missing constrained parameter: ${expected_parameter}"
+done
 [[ "$(grep -c 'name: platform-acr-registry' "${rendered_file}")" -eq 9 ]] ||
 	die "registry pull configuration is incomplete"
 if grep -Eq '^[[:space:]]*image:[[:space:]]+(quay\.io|ghcr\.io|public\.ecr\.aws|docker\.io)/' \
