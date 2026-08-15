@@ -1,6 +1,6 @@
 # 学生集群 StatefulSet 数据层
 
-本文只适用于当前 8 台 ECS 的学生练习环境。MySQL 与 Redis 均为单副本，固定到 `worker-data-01`；节点、系统盘或本地目录故障会导致整体数据层不可用。静态 PV 的 `Retain` 只能防止声明式误删直接清空目录，不能替代异机备份或高可用。
+本文只适用于当前 7 节点 Kubernetes 学生练习环境；未加入集群的 `ops-storage` 仅作为后续异机备份目标。MySQL 与 Redis 均为单副本，固定到 `worker-data-01`；节点、系统盘或本地目录故障会导致整体数据层不可用。静态 PV 的 `Retain` 只能防止声明式误删直接清空目录，不能替代异机备份或高可用。
 
 当前 `worker-data-01` 为 2 vCPU / 2 GiB。Lab 清单因此将 MySQL Buffer Pool 收紧到 256 MiB、MySQL 容器上限收紧到 896 MiB，Redis `maxmemory` 收紧到 96 MiB；这些参数只服务于低并发演示。部署后必须观察 `kubectl top node/pod`、Node `MemoryPressure`、容器 Restart/OOMKilled 和 MySQL 连接数，资源不足时应升级 ECS，而不是继续压低数据库安全余量。
 

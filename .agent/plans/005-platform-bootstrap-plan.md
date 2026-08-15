@@ -40,7 +40,7 @@
 
 ## Phase P3 - Argo CD 与数据层
 
-1. 固定 Argo CD/ApplicationSet 版本并同步所需镜像到 ACR。
+1. 固定 Argo CD/ApplicationSet 为 `v3.5.0`，校验官方非 HA 清单 SHA256，并把 Argo CD、Dex 和控制面 Redis 三类 `linux/amd64` 镜像同步到 ACR。学生集群使用非 HA 拓扑；正式生产必须改用 HA 基线。
 2. 以只读凭据接入 `cloudsentinel-gitops`，Production 保持人工 Sync。
 3. 先同步 Secret，再同步 `cloudsentinel-data-lab`；确认 3 个 Local PV/PVC 绑定、MySQL/Redis Ready 和 Bootstrap Job 成功。
 4. 数据层验收后再同步 Lab Staging；Production 只在 Staging 通过后手工执行。
@@ -54,5 +54,6 @@
 
 ## 当前状态
 
-- Phase P0 的工作流、离线安装脚本和文档正在源码仓库中实现。
-- 真实 External Secrets 镜像同步、安装、ClusterSecretStore、Argo CD 与数据层同步仍为 `NOT VERIFIED`。
+- Phase P0-P2 已在真实集群完成：External Secrets `v2.8.0` 三个 Deployment 可用，Webhook DNS 已修复并固化，`ClusterSecretStore/cloudsentinel-secret-store` 为 `Ready=True`，四个受控源 Secret 已创建且最小权限读取验证通过。
+- Phase P3 的 Argo CD `v3.5.0` 镜像同步工作流、校验构建器、离线安装脚本和操作文档已在工作区实现；真实 Actions 镜像同步与集群安装仍为 `NOT VERIFIED`。
+- Argo CD 安装成功前，不配置 GitOps 仓库凭据，不应用 `bootstrap/argocd`，也不创建 PV/PVC、MySQL/Redis StatefulSet 或 CloudSentinel 工作负载。

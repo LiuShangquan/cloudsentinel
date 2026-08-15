@@ -23,6 +23,8 @@ Source main -> Repository Secrets 固定凭证 -> ACR 个人版公网端点
 
 当前学生集群先安装 External Secrets Operator `v2.8.0`；官方兼容矩阵覆盖 Kubernetes `1.35-1.36`，与集群 `v1.35.7` 对齐。由于北京节点不能稳定访问 GHCR，必须先运行 `mirror-external-secrets-image`，把唯一的 `linux/amd64` 上游镜像同步到私有仓库 `cloudsentinel-external-secrets`。工作流会校验官方发布清单 SHA256，并生成按 ACR VPC digest 固定的离线安装 Artifact；不得让节点直接套用上游公网安装命令。
 
+Argo CD 固定为 `v3.5.0`，官方测试矩阵覆盖 Kubernetes `v1.35`。当前学生集群采用官方非 HA `install.yaml`，包含单副本 Application Controller、ApplicationSet、Repo Server、API/UI、Dex、Notifications 和 Argo CD 控制面 Redis；这适合练习与演示，不是生产高可用方案。`mirror-argocd-images` 会把 Argo CD、Dex 和 Redis 三类镜像同步到 ACR，并以官方清单 SHA256 与三个 ACR digest 生成离线 Artifact。安装脚本先通过现有 `ClusterSecretStore` 物化 `argocd/platform-acr-registry`，再执行 Server-Side Dry Run 和安装；它不会接入 Git 仓库或自动部署业务资源。
+
 还需准备：
 
 - 北京 ACR 个人版实例 `crpi-1s64ln3ptbvgkqof`，命名空间 `cloudsentinel0306`，至少包含业务、数据和平台使用的私有 Repository：`cloudsentinel-api`、`cloudsentinel-worker`、`cloudsentinel-migrate`、`cloudsentinel-mysql`、`cloudsentinel-redis`、`cloudsentinel-external-secrets`；
@@ -90,4 +92,4 @@ Registry 远端对象提供完整 `.dockerconfigjson`，其中认证服务器必
 
 同步前确认集群和 ACR 均位于 `cn-beijing`，数据节点目录已准备、所有 `ExternalSecret` Ready、ACR VPC Pull Secret 有效、两个 StatefulSet Ready、Bootstrap Job 成功且逻辑备份可写。当前 `lab-*` Overlay 不含 Ingress，因此不需要先准备域名。PreSync Job 失败时 Argo CD 不会更新应用；先检查 Job 退出码、MySQL 账户和数据层健康，不要跳过 Hook 手工滚动 Deployment。
 
-集群与云环境尚未在本地仓库验证，因此真实 Argo CD、ACR、StatefulSet、PV、备份、Ingress、证书与 ExternalSecret 结果均为 `NOT VERIFIED`。
+真实 ACR VPC 镜像拉取、External Secrets `v2.8.0`、Kubernetes Provider `ClusterSecretStore` 与受控源 Secret 已在 2026-08-15 验证。Argo CD `v3.5.0` 镜像同步与安装、GitOps 仓库只读接入、StatefulSet、PV/PVC、备份、业务发布、Ingress 和证书仍为 `NOT VERIFIED`，必须按顺序取得运行时证据后再更新状态。
