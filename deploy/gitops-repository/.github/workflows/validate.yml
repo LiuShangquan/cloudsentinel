@@ -53,6 +53,10 @@ jobs:
           test "$(grep -c '^kind: StatefulSet$' "${data_output}")" -eq 2
           test "$(grep -c '^kind: PersistentVolume$' "${data_output}")" -eq 3
           test "$(grep -c '^  persistentVolumeReclaimPolicy: Retain$' "${data_output}")" -eq 3
+          test "$(grep -c '^volumeBindingMode: Immediate$' "${data_output}")" -eq 1
+          test "$(grep -c 'argocd.argoproj.io/sync-wave: \"-30\"' "${data_output}")" -eq 12
+          test "$(grep -c 'argocd.argoproj.io/sync-wave: \"-20\"' "${data_output}")" -eq 2
+          test "$(grep -c 'argocd.argoproj.io/sync-wave: \"-10\"' "${data_output}")" -eq 1
           test "$(grep -Ec '^[[:space:]]+node-role: data$' "${data_output}")" -eq 5
           test "$(grep -Ec '^[[:space:]]+kubernetes.io/hostname: worker-data-01$' "${data_output}")" -eq 5
           if grep -Eq '^  type: (NodePort|LoadBalancer)$' "${data_output}"; then

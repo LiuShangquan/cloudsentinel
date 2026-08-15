@@ -3,6 +3,8 @@ kind: ConfigMap
 metadata:
   name: cloudsentinel-mysql-config
   namespace: cloudsentinel-data
+  annotations:
+    argocd.argoproj.io/sync-wave: "-30"
 data:
   cloudsentinel.cnf: |
     [mysqld]
@@ -23,6 +25,8 @@ kind: Service
 metadata:
   name: mysql
   namespace: cloudsentinel-data
+  annotations:
+    argocd.argoproj.io/sync-wave: "-30"
 spec:
   clusterIP: None
   selector:

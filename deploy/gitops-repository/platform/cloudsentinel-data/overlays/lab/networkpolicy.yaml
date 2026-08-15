@@ -3,6 +3,8 @@ kind: NetworkPolicy
 metadata:
   name: cloudsentinel-data-default-deny-ingress
   namespace: cloudsentinel-data
+  annotations:
+    argocd.argoproj.io/sync-wave: "-30"
 spec:
   podSelector: {}
   policyTypes: [Ingress]
@@ -12,6 +14,8 @@ kind: NetworkPolicy
 metadata:
   name: cloudsentinel-data-ingress
   namespace: cloudsentinel-data
+  annotations:
+    argocd.argoproj.io/sync-wave: "-30"
 spec:
   podSelector:
     matchExpressions:

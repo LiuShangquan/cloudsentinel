@@ -4,8 +4,9 @@ metadata:
   name: cloudsentinel-local-retain
   annotations:
     argocd.argoproj.io/sync-options: Prune=false,Delete=false
+    argocd.argoproj.io/sync-wave: "-30"
 provisioner: kubernetes.io/no-provisioner
-volumeBindingMode: WaitForFirstConsumer
+volumeBindingMode: Immediate
 reclaimPolicy: Retain
 allowVolumeExpansion: false
 ---
@@ -15,6 +16,7 @@ metadata:
   name: cloudsentinel-lab-mysql
   annotations:
     argocd.argoproj.io/sync-options: Prune=false,Delete=false
+    argocd.argoproj.io/sync-wave: "-30"
 spec:
   capacity:
     storage: 8Gi
@@ -38,6 +40,7 @@ metadata:
   name: cloudsentinel-lab-redis
   annotations:
     argocd.argoproj.io/sync-options: Prune=false,Delete=false
+    argocd.argoproj.io/sync-wave: "-30"
 spec:
   capacity:
     storage: 2Gi
@@ -61,6 +64,7 @@ metadata:
   name: cloudsentinel-lab-backup
   annotations:
     argocd.argoproj.io/sync-options: Prune=false,Delete=false
+    argocd.argoproj.io/sync-wave: "-30"
 spec:
   capacity:
     storage: 5Gi
@@ -85,6 +89,7 @@ metadata:
   namespace: cloudsentinel-data
   annotations:
     argocd.argoproj.io/sync-options: Prune=false,Delete=false
+    argocd.argoproj.io/sync-wave: "-30"
 spec:
   accessModes: [ReadWriteOnce]
   storageClassName: cloudsentinel-local-retain
@@ -100,6 +105,7 @@ metadata:
   namespace: cloudsentinel-data
   annotations:
     argocd.argoproj.io/sync-options: Prune=false,Delete=false
+    argocd.argoproj.io/sync-wave: "-30"
 spec:
   accessModes: [ReadWriteOnce]
   storageClassName: cloudsentinel-local-retain
@@ -115,6 +121,7 @@ metadata:
   namespace: cloudsentinel-data
   annotations:
     argocd.argoproj.io/sync-options: Prune=false,Delete=false
+    argocd.argoproj.io/sync-wave: "-30"
 spec:
   accessModes: [ReadWriteOnce]
   storageClassName: cloudsentinel-local-retain
