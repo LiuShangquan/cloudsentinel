@@ -12,7 +12,7 @@ readonly REDIS_VERSION="8.2.3-alpine"
 readonly UPSTREAM_MANIFEST_SHA256="a32bf36a437071a1f563ebf9e81c8a39fba9057c17db7d5d041afb7b6e3f4afe"
 readonly ACR_DEPLOY_REGISTRY="crpi-1s64ln3ptbvgkqof-vpc.cn-beijing.personal.cr.aliyuncs.com"
 readonly ACR_NAMESPACE="cloudsentinel0306"
-readonly SCRIPT_REVISION="2026-08-15.1"
+readonly SCRIPT_REVISION="2026-08-15.2"
 
 upstream_manifest=""
 output_dir=""
@@ -211,6 +211,23 @@ patches:
           limits:
             cpu: 500m
             memory: 512Mi
+  - target:
+      version: v1
+      kind: ConfigMap
+      name: argocd-cmd-params-cm
+    patch: |-
+      - op: add
+        path: /data/controller.status.processors
+        value: "1"
+      - op: add
+        path: /data/controller.operation.processors
+        value: "1"
+      - op: add
+        path: /data/controller.kubectl.parallelism.limit
+        value: "1"
+      - op: add
+        path: /data/reposerver.parallelism.limit
+        value: "1"
 EOF
 
 readonly release_url="https://raw.githubusercontent.com/argoproj/argo-cd/${ARGOCD_VERSION}/manifests/install.yaml"
@@ -243,6 +260,14 @@ rendered="${output_dir}/argocd.rendered.yaml"
 	die "all workloads and both ExternalSecret name fields must use the registry name"
 [[ "$(grep -c 'node-role: app' "${rendered}")" -eq 7 ]] ||
 	die "all seven Argo CD workloads must target app nodes"
+for expected_parameter in \
+	'controller.status.processors: "1"' \
+	'controller.operation.processors: "1"' \
+	'controller.kubectl.parallelism.limit: "1"' \
+	'reposerver.parallelism.limit: "1"'; do
+	grep -Fq "${expected_parameter}" "${rendered}" ||
+		die "rendered bundle is missing constrained parameter: ${expected_parameter}"
+done
 [[ "$(grep -c '^kind: ExternalSecret$' "${rendered}")" -eq 1 ]] ||
 	die "registry ExternalSecret is missing from rendered bundle"
 if grep -Eq '^[[:space:]]*image:[[:space:]]+(quay\.io|ghcr\.io|public\.ecr\.aws|docker\.io)/' \

@@ -56,4 +56,19 @@ kubectl get crd applications.argoproj.io applicationsets.argoproj.io appprojects
 
 预期为 6 个 Deployment、1 个 StatefulSet 全部 Ready，Pod 只位于两个 `node-role=app` 节点，所有运行时镜像均为北京 ACR VPC digest，`argocd-server` 保持 `ClusterIP`。
 
+## 学生集群并发边界
+
+本集群的三个 Control Plane 均只有 2 GiB 内存。离线 Bundle 因此通过 `argocd-cmd-params-cm` 固定 Application Controller 状态处理器、操作处理器、`kubectl` 并发和 Repo Server 清单生成并发为 `1`。该配置不关闭自动同步、Self-Heal 或 Prune，只把多个应用的比较与同步串行化，避免瞬时 API 请求和清单生成压垮实验控制面。
+
+这些值是学生集群容量保护，不是企业生产吞吐建议。扩大应用数量或升级控制面容量后，必须结合 API Server、etcd、Repo Server 和 Application Controller 指标重新压测，不能直接沿用或盲目提高并发。
+
+只读检查：
+
+```bash
+kubectl -n argocd get configmap argocd-cmd-params-cm \
+  -o jsonpath='{.data.controller\.status\.processors}{" "}{.data.controller\.operation\.processors}{" "}{.data.controller\.kubectl\.parallelism\.limit}{" "}{.data.reposerver\.parallelism\.limit}{"\n"}'
+```
+
+预期输出为 `1 1 1 1`。修改 ConfigMap 后必须重启 `argocd-repo-server` 和 `argocd-application-controller` 才能使对应进程读取新值。
+
 安装完成后再单独配置 `cloudsentinel-gitops` 的只读 Deploy Key。初始管理员密码位于 `argocd-initial-admin-secret`，仅应在受控终端按需读取；首次登录并修改密码后删除该初始 Secret。不得把密码、Deploy Key、仓库 Secret、Kubeconfig 或其 Base64 内容复制到 Git、聊天记录或工单。
