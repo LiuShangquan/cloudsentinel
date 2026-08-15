@@ -53,6 +53,8 @@ jobs:
           bash -n deploy/kubernetes/prepare-cluster-test-image-alinux4.sh
           bash -n deploy/kubernetes/run-cluster-network-smoke.sh
           bash -n deploy/kubernetes/install-external-secrets.sh
+          bash -n deploy/kubernetes/build-argocd-bundle.sh
+          bash -n deploy/kubernetes/install-argocd.sh
           test "$(grep -c '^kind: Pod$' deploy/kubernetes/tests/network-smoke.yaml)" -eq 3
           test "$(grep -c 'imagePullPolicy: Never' deploy/kubernetes/tests/network-smoke.yaml)" -eq 3
           test "$(grep -c '^kind: NetworkPolicy$' deploy/kubernetes/tests/network-policy-smoke.yaml)" -eq 2
@@ -61,7 +63,9 @@ jobs:
             deploy/kubernetes/tests \
             deploy/kubernetes/prepare-cluster-test-image-alinux4.sh \
             deploy/kubernetes/run-cluster-network-smoke.sh \
-            deploy/kubernetes/install-external-secrets.sh; then
+            deploy/kubernetes/install-external-secrets.sh \
+            deploy/kubernetes/build-argocd-bundle.sh \
+            deploy/kubernetes/install-argocd.sh; then
             echo 'cluster smoke-test assets contain unresolved placeholders' >&2
             exit 1
           fi
@@ -71,6 +75,14 @@ jobs:
             deploy/kubernetes/install-external-secrets.sh
           grep -Fq -- '--dns-name=external-secrets-webhook.external-secrets.svc' \
             deploy/kubernetes/install-external-secrets.sh
+          grep -Fq 'readonly ARGOCD_VERSION="v3.5.0"' \
+            deploy/kubernetes/build-argocd-bundle.sh
+          grep -Fq 'EXPECTED_VERSION="v3.5.0"' \
+            deploy/kubernetes/install-argocd.sh
+          grep -Fq 'a32bf36a437071a1f563ebf9e81c8a39fba9057c17db7d5d041afb7b6e3f4afe' \
+            deploy/kubernetes/build-argocd-bundle.sh
+          grep -Fq 'a32bf36a437071a1f563ebf9e81c8a39fba9057c17db7d5d041afb7b6e3f4afe' \
+            deploy/kubernetes/install-argocd.sh
       - name: Render and audit Kustomize overlays
         shell: bash
         run: |

@@ -1,0 +1,148 @@
+name: mirror-argocd-images
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudsentinel-argocd-image-mirror
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      ACR_PUBLIC_REGISTRY: crpi-1s64ln3ptbvgkqof.cn-beijing.personal.cr.aliyuncs.com
+      ACR_NAMESPACE: cloudsentinel0306
+      ARGOCD_VERSION: v3.5.0
+      DEX_VERSION: v2.45.0
+      REDIS_VERSION: 8.2.3-alpine
+      ARGOCD_MANIFEST_SHA256: a32bf36a437071a1f563ebf9e81c8a39fba9057c17db7d5d041afb7b6e3f4afe
+    steps:
+      - name: Checkout source repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - name: Validate mirror boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ github.repository_owner }}" = "${{ vars.RELEASE_ALLOWED_OWNER }}"
+          test "${{ github.event.repository.name }}" = "${{ vars.RELEASE_ALLOWED_REPOSITORY }}"
+          test "${GITHUB_REF}" = "refs/heads/main"
+          test "${ARGOCD_VERSION}" = "v3.5.0"
+          test "${DEX_VERSION}" = "v2.45.0"
+          test "${REDIS_VERSION}" = "8.2.3-alpine"
+          test "${ARGOCD_MANIFEST_SHA256}" = \
+            "a32bf36a437071a1f563ebf9e81c8a39fba9057c17db7d5d041afb7b6e3f4afe"
+          bash -n deploy/kubernetes/build-argocd-bundle.sh
+          docker version
+          kubectl version --client
+
+      - name: Log in to ACR Personal Edition
+        env:
+          ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
+          ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${ACR_USERNAME}"
+          test -n "${ACR_PASSWORD}"
+          printf '%s' "${ACR_PASSWORD}" |
+            docker login "${ACR_PUBLIC_REGISTRY}" \
+              --username "${ACR_USERNAME}" \
+              --password-stdin
+
+      - name: Mirror pinned Argo CD images for linux amd64
+        id: images
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mirror_image() {
+            local source="$1"
+            local target="$2"
+            local output_name="$3"
+            local platform
+            local push_output
+            local digest
+
+            docker pull --platform linux/amd64 "${source}"
+            platform="$(docker image inspect \
+              --format '{{.Os}}/{{.Architecture}}' "${source}")"
+            test "${platform}" = 'linux/amd64'
+            docker tag "${source}" "${target}"
+            push_output="$(docker push "${target}" 2>&1 | tee /dev/stderr)"
+            digest="$(printf '%s\n' "${push_output}" |
+              sed -nE 's/.*digest: (sha256:[0-9a-f]{64}).*/\1/p' |
+              tail -n 1)"
+            [[ "${digest}" =~ ^sha256:[0-9a-f]{64}$ ]]
+            printf '%s=%s\n' "${output_name}" "${digest}" >>"${GITHUB_OUTPUT}"
+          }
+
+          mirror_image \
+            "quay.io/argoproj/argocd:${ARGOCD_VERSION}" \
+            "${ACR_PUBLIC_REGISTRY}/${ACR_NAMESPACE}/cloudsentinel-argocd:${ARGOCD_VERSION}" \
+            argocd_digest
+          mirror_image \
+            "ghcr.io/dexidp/dex:${DEX_VERSION}" \
+            "${ACR_PUBLIC_REGISTRY}/${ACR_NAMESPACE}/cloudsentinel-argocd-dex:${DEX_VERSION}" \
+            dex_digest
+          mirror_image \
+            "public.ecr.aws/docker/library/redis:${REDIS_VERSION}" \
+            "${ACR_PUBLIC_REGISTRY}/${ACR_NAMESPACE}/cloudsentinel-argocd-redis:${REDIS_VERSION}" \
+            redis_digest
+
+      - name: Download and verify official installation manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --show-error --silent \
+            --retry 5 --retry-all-errors \
+            --output /tmp/argocd.install.yaml \
+            "https://raw.githubusercontent.com/argoproj/argo-cd/${ARGOCD_VERSION}/manifests/install.yaml"
+          printf '%s  %s\n' \
+            "${ARGOCD_MANIFEST_SHA256}" \
+            /tmp/argocd.install.yaml |
+            sha256sum --check --strict
+
+      - name: Build checksum-verified offline installation bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash deploy/kubernetes/build-argocd-bundle.sh \
+            --upstream-manifest /tmp/argocd.install.yaml \
+            --output-dir argocd-bundle \
+            --argocd-digest '${{ steps.images.outputs.argocd_digest }}' \
+            --dex-digest '${{ steps.images.outputs.dex_digest }}' \
+            --redis-digest '${{ steps.images.outputs.redis_digest }}'
+
+          {
+            echo '## Argo CD offline bundle'
+            echo
+            echo '| Component | Version | ACR digest |'
+            echo '|---|---|---|'
+            printf '| Argo CD | `%s` | `%s` |\n' \
+              "${ARGOCD_VERSION}" '${{ steps.images.outputs.argocd_digest }}'
+            printf '| Dex | `%s` | `%s` |\n' \
+              "${DEX_VERSION}" '${{ steps.images.outputs.dex_digest }}'
+            printf '| Redis cache | `%s` | `%s` |\n' \
+              "${REDIS_VERSION}" '${{ steps.images.outputs.redis_digest }}'
+            echo
+            printf 'Official manifest SHA256: `%s`\n' \
+              "${ARGOCD_MANIFEST_SHA256}"
+          } >>"${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload offline installation bundle
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: argocd-v3.5.0-linux-amd64
+          path: argocd-bundle
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Log out of ACR
+        if: always()
+        run: docker logout "${ACR_PUBLIC_REGISTRY}" || true
