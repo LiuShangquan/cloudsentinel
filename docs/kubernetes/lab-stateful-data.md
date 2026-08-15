@@ -121,7 +121,7 @@ kubectl get clustersecretstore cloudsentinel-secret-store
 
 ## 5. 同步数据镜像
 
-源码仓库 GitHub Actions 的 `mirror-lab-data-images` 会把固定的 `mysql:8.4.10` 与 `redis:8.4.5-alpine` 的 `linux/amd64` 镜像同步到 ACR 私有仓库，并直接采用 Registry Push 返回的 digest 创建 GitOps PR。当前 ECS 节点统一为 x86，因此不复制无用的 ARM 等多架构 Manifest；未来引入 ARM 节点前必须重新设计并验证多架构发布。运行前确认源码仓库已有：
+源码仓库 GitHub Actions 的 `mirror-lab-data-images` 会把固定的 `mysql:8.4.10` 与 `redis:8.4.5-alpine` 的 `linux/amd64` 镜像同步到 ACR 私有仓库，并在按 Registry Push 返回的 digest 成功回拉和验证架构后创建 GitOps PR。当前 ECS 节点统一为 x86，因此不复制无用的 ARM 等多架构 Manifest；未来引入 ARM 节点前必须重新设计并验证多架构发布。运行前确认源码仓库已有：
 
 - Repository Secrets：`ACR_USERNAME`、`ACR_PASSWORD`、`GITOPS_APP_PRIVATE_KEY`；
 - Repository Variables：既有 GitOps App 变量，以及 `RELEASE_ALLOWED_OWNER`、`RELEASE_ALLOWED_REPOSITORY`；
