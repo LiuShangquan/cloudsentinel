@@ -36,6 +36,7 @@ kubectl describe node worker-data-01 | sed -n '/Taints:/,/Unschedulable:/p'
 - 节点真实名称恰好是 `worker-data-01`；
 - Label 为 `node-role=data`；
 - Taint 为 `dedicated=data:NoSchedule`；
+- 静态 Local PV 使用 `Immediate` 绑定并显式固定 `volumeName` 与节点亲和性；这是为了让没有常驻消费者的备份 PVC 也能在 Argo CD 后续波次开始前完成绑定。
 - 集群已安装 Argo CD/ApplicationSet、External Secrets Operator v1 API、Metrics Server 与支持 NetworkPolicy 的 Calico；当前 ESO 控制器固定为与 Kubernetes `1.35` 对齐的 `v2.8.0`；
 - ACR 中已手工创建业务、数据和平台所需私有仓库；数据层至少包括 `cloudsentinel-mysql` 与 `cloudsentinel-redis`，ESO 安装还需要 `cloudsentinel-external-secrets`。
 
@@ -135,7 +136,7 @@ kubectl get clustersecretstore cloudsentinel-secret-store
 1. 平台管理员应用 `bootstrap/secret-store`，确认 `ClusterSecretStore` Ready。
 2. 将 GitOps 仓库以只读凭证接入 Argo CD。
 3. 平台管理员应用 `bootstrap/argocd`。
-4. 观察 `cloudsentinel-data-lab`：ExternalSecret 先物化，两个 StatefulSet 启动，MySQL Bootstrap Job 创建两个 Database 与最小权限账户。
+4. 观察 `cloudsentinel-data-lab`：同步波次 `-30` 先创建 StorageClass、PV/PVC、配置、Service 与 NetworkPolicy，`-20` 再启动两个 StatefulSet，`-10` 的 MySQL Bootstrap Job 最后创建两个 Database 与最小权限账户。
 5. 确认数据层健康后，观察 `cloudsentinel-secrets-staging` 与 `cloudsentinel-staging`；Staging 会自动同步。
 6. Staging 验收通过后，才允许人工同步 Production。
 

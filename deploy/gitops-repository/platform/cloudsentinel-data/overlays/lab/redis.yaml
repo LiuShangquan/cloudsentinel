@@ -3,6 +3,8 @@ kind: Service
 metadata:
   name: redis
   namespace: cloudsentinel-data
+  annotations:
+    argocd.argoproj.io/sync-wave: "-30"
 spec:
   clusterIP: None
   selector:
