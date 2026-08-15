@@ -111,6 +111,8 @@ jobs:
             echo 'data services must remain private ClusterIP services' >&2
             exit 1
           fi
-          kubectl kustomize deploy/gitops-repository/bootstrap/secret-store >/dev/null
+          secret_store_output="$(mktemp)"
+          kubectl kustomize deploy/gitops-repository/bootstrap/secret-store >"${secret_store_output}"
+          test "$(grep -Ec '^[[:space:]]+- argocd$' "${secret_store_output}")" -eq 1
           kubectl kustomize deploy/gitops-repository/platform/cloudsentinel-secrets/overlays/lab-data >/dev/null
           kubectl kustomize deploy/gitops-repository/bootstrap/argocd >/dev/null
