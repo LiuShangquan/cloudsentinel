@@ -6,7 +6,7 @@ metadata:
 spec:
   description: CloudSentinel application delivery boundary
   sourceRepos:
-    - https://github.com/LiuShangquan/cloudsentinel-gitops.git
+    - git@github.com:LiuShangquan/cloudsentinel-gitops.git
   destinations:
     - server: https://kubernetes.default.svc
       namespace: cloudsentinel-staging
