@@ -46,7 +46,7 @@ ACR 个人版不提供企业版临时登录流程。固定 Registry 密码不得
 3. 运行 GitOps 仓库的 `validate-gitops`，确认 `lab-*`、`bootstrap`、实验数据层及已启用 Secret Overlay 不含占位符，再渲染所有当前启用的 Overlay；不要用整个仓库必须零占位符的检查误判休眠模板。
 4. GitHub Free 私有仓库无法启用分支保护；团队约定禁止 Direct Push，所有变更均使用 PR，并在合并前人工确认 `validate-gitops` 成功。升级 GitHub Pro 后立即启用 `main` 分支保护、必需状态检查、对话解决、线性历史和 CODEOWNERS。
 5. Production 目录保留平台和应用双重审阅要求，但在 GitHub Free 私有仓库中这是流程约束而非平台强制；GitHub App 只创建分支和 PR，不直接更新 `main`。
-6. 将独立仓库以只读 Deploy Key 或 GitHub App 接入 Argo CD，然后由平台管理员应用 `bootstrap/argocd`。
+6. 将独立仓库以只读 Deploy Key 或 GitHub App 接入 Argo CD，然后由平台管理员应用 `bootstrap/argocd`。使用 Deploy Key 时必须关闭写权限，并统一使用 SSH 地址 `git@github.com:LiuShangquan/cloudsentinel-gitops.git`；不得把私钥写入 Git。
 
 Argo CD 项目允许 Staging、Production 和 `cloudsentinel-data` 三个 Namespace，以及数据层所需的 PV/StorageClass/StatefulSet/CronJob。独立 Secret ApplicationSet 先物化 ExternalSecret；数据 Application 自动 Self-Heal 但禁用 Prune，也不配置资源级联删除 Finalizer；Staging 应用开启 Prune/Self-Heal；Production 应用默认需要人工 Sync。
 

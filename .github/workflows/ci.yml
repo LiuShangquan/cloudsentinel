@@ -115,4 +115,10 @@ jobs:
           kubectl kustomize deploy/gitops-repository/bootstrap/secret-store >"${secret_store_output}"
           test "$(grep -Ec '^[[:space:]]+- argocd$' "${secret_store_output}")" -eq 1
           kubectl kustomize deploy/gitops-repository/platform/cloudsentinel-secrets/overlays/lab-data >/dev/null
-          kubectl kustomize deploy/gitops-repository/bootstrap/argocd >/dev/null
+          argocd_bootstrap_output="$(mktemp)"
+          kubectl kustomize deploy/gitops-repository/bootstrap/argocd >"${argocd_bootstrap_output}"
+          test "$(grep -Fc 'git@github.com:LiuShangquan/cloudsentinel-gitops.git' "${argocd_bootstrap_output}")" -eq 4
+          if grep -Fq 'https://github.com/LiuShangquan/cloudsentinel-gitops.git' "${argocd_bootstrap_output}"; then
+            echo 'Argo CD must use the SSH URL that matches the read-only Deploy Key.' >&2
+            exit 1
+          fi
