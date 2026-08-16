@@ -92,6 +92,6 @@ Registry 远端对象提供完整 `.dockerconfigjson`，其中认证服务器必
 
 ## 6. 首次同步检查
 
-同步前确认集群和 ACR 均位于 `cn-beijing`，数据节点目录已准备、所有 `ExternalSecret` Ready、ACR VPC Pull Secret 有效、两个 StatefulSet Ready、Bootstrap Job 成功且逻辑备份可写。当前 `lab-*` Overlay 不含 Ingress，因此不需要先准备域名。PreSync Job 失败时 Argo CD 不会更新应用；先检查 Job 退出码、MySQL 账户和数据层健康，不要跳过 Hook 手工滚动 Deployment。
+同步前确认集群和 ACR 均位于 `cn-beijing`，数据节点目录已准备、所有 `ExternalSecret` Ready、ACR VPC Pull Secret 有效、两个 StatefulSet Ready、Bootstrap Job 成功且逻辑备份可写。当前 `lab-*` Overlay 不含 Ingress，因此不需要先准备域名。Migration 是 PreSync Hook，会早于应用的普通 ServiceAccount 创建；它因此使用 Namespace 自动生成的 `default` ServiceAccount、保持 `automountServiceAccountToken: false`，并只在 Pod 上显式引用 ACR Pull Secret。PreSync Job 失败时 Argo CD 不会更新应用；先检查 Job 退出码、MySQL 账户和数据层健康，不要跳过 Hook 手工滚动 Deployment。
 
-真实 ACR VPC 镜像拉取、External Secrets `v2.8.0`、Kubernetes Provider `ClusterSecretStore`、受控源 Secret、Argo CD `v3.5.0` 安装和 GitOps 仓库只读接入已在 2026-08-15 验证。三个 Secret Application 已成功物化 ExternalSecret；其中 `cloudsentinel-secrets-data-lab` 已通过 Server-Side Diff 确认达到 `Synced/Healthy`，Staging 与 Production 仍需完成相同的硬刷新验收。StatefulSet、PV/PVC、备份、业务发布、Ingress 和证书仍为 `NOT VERIFIED`，必须按顺序取得运行时证据后再更新状态。
+真实 ACR VPC 镜像拉取、External Secrets `v2.8.0`、Kubernetes Provider `ClusterSecretStore`、受控源 Secret、Argo CD `v3.5.0` 安装和 GitOps 仓库只读接入已在 2026-08-15 验证。三个 Secret Application 已成功物化 ExternalSecret，并通过 Server-Side Diff 达到 `Synced/Healthy`。实验数据层的 MySQL/Redis StatefulSet、Local PV/PVC、认证连接和 Argo CD 收敛已在 2026-08-15 验证；备份 CronJob 已创建，但实际备份与恢复演练仍为 `NOT VERIFIED`。Staging 业务发布正在验收，Production、Ingress 和证书仍为 `NOT VERIFIED`，必须按顺序取得运行时证据后再更新状态。

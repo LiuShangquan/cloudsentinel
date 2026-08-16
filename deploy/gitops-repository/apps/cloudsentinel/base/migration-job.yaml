@@ -19,8 +19,14 @@ spec:
         app.kubernetes.io/component: migration
     spec:
       restartPolicy: Never
-      serviceAccountName: cloudsentinel
+      # PreSync hooks run before the regular application ServiceAccount exists.
+      # The migration does not call the Kubernetes API, so use the namespace's
+      # default ServiceAccount without mounting its token and attach only the
+      # registry credential required to pull the private migration image.
+      serviceAccountName: default
       automountServiceAccountToken: false
+      imagePullSecrets:
+        - name: cloudsentinel-registry
       enableServiceLinks: false
       securityContext:
         seccompProfile:
