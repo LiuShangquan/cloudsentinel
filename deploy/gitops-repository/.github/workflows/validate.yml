@@ -48,6 +48,11 @@ jobs:
             image_count="$(grep -Ec 'image: crpi-1s64ln3ptbvgkqof-vpc\.cn-beijing\.personal\.cr\.aliyuncs\.com/cloudsentinel0306/cloudsentinel-(api|worker|migrate)@sha256:[0-9a-f]{64}$' "${output}")"
             test "${image_count}" -eq 3
           done
+          migration_job=apps/cloudsentinel/base/migration-job.yaml
+          grep -q '^      serviceAccountName: default$' "${migration_job}"
+          grep -q '^      automountServiceAccountToken: false$' "${migration_job}"
+          grep -A1 '^      imagePullSecrets:$' "${migration_job}" |
+            grep -q '^        - name: cloudsentinel-registry$'
           data_output="$(mktemp)"
           kubectl kustomize platform/cloudsentinel-data/overlays/lab >"${data_output}"
           test "$(grep -c '^kind: StatefulSet$' "${data_output}")" -eq 2
