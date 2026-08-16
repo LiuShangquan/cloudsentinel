@@ -1,0 +1,121 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: cloudsentinel-monitoring-local-retain
+  annotations:
+    argocd.argoproj.io/sync-wave: "-30"
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: Immediate
+reclaimPolicy: Retain
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: cloudsentinel-monitoring-prometheus
+  annotations:
+    argocd.argoproj.io/sync-wave: "-30"
+spec:
+  capacity:
+    storage: 6Gi
+  accessModes: [ReadWriteOnce]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: cloudsentinel-monitoring-local-retain
+  local:
+    path: /var/lib/cloudsentinel/monitoring/prometheus
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values: [worker-monitor]
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: cloudsentinel-monitoring-alertmanager
+  annotations:
+    argocd.argoproj.io/sync-wave: "-30"
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes: [ReadWriteOnce]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: cloudsentinel-monitoring-local-retain
+  local:
+    path: /var/lib/cloudsentinel/monitoring/alertmanager
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values: [worker-monitor]
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: cloudsentinel-monitoring-grafana
+  annotations:
+    argocd.argoproj.io/sync-wave: "-30"
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes: [ReadWriteOnce]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: cloudsentinel-monitoring-local-retain
+  local:
+    path: /var/lib/cloudsentinel/monitoring/grafana
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values: [worker-monitor]
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: prometheus-data
+  namespace: monitoring
+  annotations:
+    argocd.argoproj.io/sync-wave: "-30"
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: cloudsentinel-monitoring-local-retain
+  volumeName: cloudsentinel-monitoring-prometheus
+  resources:
+    requests:
+      storage: 6Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: alertmanager-data
+  namespace: monitoring
+  annotations:
+    argocd.argoproj.io/sync-wave: "-30"
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: cloudsentinel-monitoring-local-retain
+  volumeName: cloudsentinel-monitoring-alertmanager
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: grafana-data
+  namespace: monitoring
+  annotations:
+    argocd.argoproj.io/sync-wave: "-30"
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: cloudsentinel-monitoring-local-retain
+  volumeName: cloudsentinel-monitoring-grafana
+  resources:
+    requests:
+      storage: 1Gi
+

@@ -11,6 +11,7 @@ rules:
       - cloudsentinel-staging-app
       - cloudsentinel-production-app
       - cloudsentinel-registry
+      - cloudsentinel-monitoring
     verbs: ["get"]
   - apiGroups: ["authorization.k8s.io"]
     resources: ["selfsubjectaccessreviews", "selfsubjectrulesreviews"]

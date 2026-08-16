@@ -19,7 +19,7 @@ Source main -> Repository Secrets 固定凭证 -> ACR 个人版公网端点
 
 ## 2. 平台前置条件
 
-平台团队应先在目标集群提供：Argo CD/ApplicationSet、ingress-nginx、cert-manager、External Secrets Operator、Metrics Server 与 Prometheus。CRD 和 ClusterRole 属于平台仓库，CloudSentinel AppProject 无权安装它们。
+平台团队应先在目标集群提供：Argo CD/ApplicationSet、ingress-nginx、cert-manager、External Secrets Operator、Metrics Server 与 Prometheus。CRD 和 ClusterRole 属于平台仓库，CloudSentinel 业务 AppProject 无权安装它们；当前学生集群使用独立的 `cloudsentinel-platform` AppProject 管理受限的平台资源。
 
 当前学生集群先安装 External Secrets Operator `v2.8.0`；官方兼容矩阵覆盖 Kubernetes `1.35-1.36`，与集群 `v1.35.7` 对齐。由于北京节点不能稳定访问 GHCR，必须先运行 `mirror-external-secrets-image`，把唯一的 `linux/amd64` 上游镜像同步到私有仓库 `cloudsentinel-external-secrets`。工作流会校验官方发布清单 SHA256，并生成按 ACR VPC digest 固定的离线安装 Artifact；不得让节点直接套用上游公网安装命令。
 
@@ -27,7 +27,7 @@ Argo CD 固定为 `v3.5.0`，官方测试矩阵覆盖 Kubernetes `v1.35`。当�
 
 还需准备：
 
-- 北京 ACR 个人版实例 `crpi-1s64ln3ptbvgkqof`，命名空间 `cloudsentinel0306`，至少包含业务、数据和平台使用的私有 Repository：`cloudsentinel-api`、`cloudsentinel-worker`、`cloudsentinel-migrate`、`cloudsentinel-mysql`、`cloudsentinel-redis`、`cloudsentinel-external-secrets`；
+- 北京 ACR 个人版实例 `crpi-1s64ln3ptbvgkqof`，命名空间 `cloudsentinel0306`，至少包含业务、数据和平台使用的私有 Repository：`cloudsentinel-api`、`cloudsentinel-worker`、`cloudsentinel-migrate`、`cloudsentinel-mysql`、`cloudsentinel-redis`、`cloudsentinel-external-secrets`、`cloudsentinel-prometheus`、`cloudsentinel-alertmanager`、`cloudsentinel-grafana`、`cloudsentinel-metrics-server`；
 - 当前学生集群使用 `worker-data-01` 上的单副本 MySQL/Redis StatefulSet；正式企业生产切换为 RDS/Tair 后再准备私网 Endpoint、多可用区和托管备份；
 - 只安装在 GitOps 仓库的 GitHub App，权限限定为 Contents 读写和 Pull Requests 读写；
 - GitHub Repository Secrets：`ACR_USERNAME`、`ACR_PASSWORD`、`GITOPS_APP_PRIVATE_KEY`；
@@ -75,7 +75,7 @@ Registry 远端对象提供完整 `.dockerconfigjson`，其中认证服务器必
 
 该 JSON 是结构示例，真实密码和 `auth` 不得写入 Git。密钥后端和 `ClusterSecretStore` 由平台决定；应用仓库不绑定已经处于不维护状态的云 Provider 实现。
 
-学生集群的 Kubernetes Provider Secret Store 由 `bootstrap/secret-store` 提供。源 Namespace 只保存四个受控 Secret：`cloudsentinel-data-credentials`、`cloudsentinel-staging-app`、`cloudsentinel-production-app`、`cloudsentinel-registry`。完整键名、生成方式和启用顺序见 [实验 StatefulSet 数据层](kubernetes/lab-stateful-data.md)。
+学生集群的 Kubernetes Provider Secret Store 由 `bootstrap/secret-store` 提供。源 Namespace 只保存五个受控 Secret：`cloudsentinel-data-credentials`、`cloudsentinel-staging-app`、`cloudsentinel-production-app`、`cloudsentinel-registry`、`cloudsentinel-monitoring`。监控源 Secret 只包含独立 Grafana 管理凭证和从既有 Staging 源 Secret 安全复制的 Alertmanager Webhook Token。数据键名与启用顺序见[实验 StatefulSet 数据层](kubernetes/lab-stateful-data.md)，监控流程见[学生集群轻量监控平台](kubernetes/lab-monitoring-platform.md)。
 
 ## 5. 正常发布
 
@@ -94,4 +94,4 @@ Registry 远端对象提供完整 `.dockerconfigjson`，其中认证服务器必
 
 同步前确认集群和 ACR 均位于 `cn-beijing`，数据节点目录已准备、所有 `ExternalSecret` Ready、ACR VPC Pull Secret 有效、两个 StatefulSet Ready、Bootstrap Job 成功且逻辑备份可写。当前 `lab-*` Overlay 不含 Ingress，因此不需要先准备域名。Migration 是 PreSync Hook，会早于应用的普通 ServiceAccount 创建；它因此使用 Namespace 自动生成的 `default` ServiceAccount、保持 `automountServiceAccountToken: false`，并只在 Pod 上显式引用 ACR Pull Secret。PreSync Job 失败时 Argo CD 不会更新应用；先检查 Job 退出码、MySQL 账户和数据层健康，不要跳过 Hook 手工滚动 Deployment。
 
-真实 ACR VPC 镜像拉取、External Secrets `v2.8.0`、Kubernetes Provider `ClusterSecretStore`、受控源 Secret、Argo CD `v3.5.0` 安装和 GitOps 仓库只读接入已在 2026-08-15 验证。三个 Secret Application 已成功物化 ExternalSecret，并通过 Server-Side Diff 达到 `Synced/Healthy`。实验数据层的 MySQL/Redis StatefulSet、Local PV/PVC、认证连接和 Argo CD 收敛已在 2026-08-15 验证；备份 CronJob 已创建，但实际备份与恢复演练仍为 `NOT VERIFIED`。Staging 业务发布正在验收，Production、Ingress 和证书仍为 `NOT VERIFIED`，必须按顺序取得运行时证据后再更新状态。
+真实 ACR VPC 镜像拉取、External Secrets `v2.8.0`、Kubernetes Provider `ClusterSecretStore`、受控源 Secret、Argo CD `v3.5.0` 安装和 GitOps 仓库只读接入已在 2026-08-15 验证。三个 Secret Application 已成功物化 ExternalSecret，并通过 Server-Side Diff 达到 `Synced/Healthy`。实验数据层的 MySQL/Redis StatefulSet、Local PV/PVC、认证连接和 Argo CD 收敛已在 2026-08-15 验证；备份 CronJob 已创建，但实际备份与恢复演练仍为 `NOT VERIFIED`。Staging 于 2026-08-16 完成 Migration、API/Worker 2 副本、内部健康检查、JWT 身份认证及真实 Host/Service/Probe Task 到 HTTP 200 Probe Result 的业务 E2E 验收，测试业务记录已禁用，临时 Namespace 已删除。轻量监控平台、Production、Ingress 和证书仍为 `NOT VERIFIED`，必须按顺序取得运行时证据后再更新状态。

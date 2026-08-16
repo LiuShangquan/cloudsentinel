@@ -37,7 +37,8 @@
 3. 按[网络与安全设计](security-and-network.md)在阿里云控制台准备 VPC、VSwitch、Security Group、Internal NLB 和私有 DNS。
 4. 从[部署手册](deployment-guide.md)第 0 节开始逐条执行，直至第 30 节验收。
 5. 集群通过验收后，按[实验 StatefulSet 数据层](lab-stateful-data.md)准备数据节点、密钥、ACR 镜像和 Argo CD 同步顺序。
-6. 发生异常时查阅[故障排查与重建](troubleshooting.md)。
+6. Staging 业务验收通过后，按[轻量监控平台](lab-monitoring-platform.md)准备监控节点、镜像、Secret 和 Argo CD Application。
+7. 发生异常时查阅[故障排查与重建](troubleshooting.md)。
 
 ## 各文档作用
 
@@ -48,6 +49,7 @@
 | `deployment-guide.md` | 从变量准备、CentOS 初始化、kubeadm 建群到网络与 HA 验收的顺序操作手册 |
 | `troubleshooting.md` | 高频故障的现象、检查、解决方向、恢复验证，以及受控重建流程 |
 | `lab-stateful-data.md` | 学生集群 MySQL/Redis StatefulSet、静态本地存储、Secret、备份与启用顺序 |
+| `lab-monitoring-platform.md` | 学生集群 Prometheus、Alertmanager、Grafana、Metrics Server 的容量边界、启用与验收 |
 | `inventory.example.yaml` | 不含 Secret 的环境变量与节点信息模板 |
 | `inventory.lab.yaml` | 当前 8 台 ECS 的私网地址、角色、容量和部署阻断项；不记录公网地址或 Secret |
 | `kubeadm-init-master-01.yaml` | 当前实验集群完成变量替换的 kubeadm v1beta4 初始化配置；不含 Bootstrap Token、Certificate Key 或其他 Secret |
@@ -82,7 +84,7 @@
 - Calico CNI 与 `APIServer/default` 已于 2026-08-14 安装，CoreDNS、两副本 Calico API Server 均健康，`apiserver`、`calico`、`ippools`、`tiers` 四个 TigeraStatus 全部可用且无降级。同日完成 3 个 Control Plane 与 4 个 Worker 的逐台 Join：7 个 Kubernetes 节点均为 Ready，stacked etcd 的 3 个 Member 均为 `started`；应用节点、监控节点和数据节点的项目 Label/Taint 已按规划落地。
 - 集群基础状态与 CoreDNS 已通过验收。跨节点网络测试必须先由 `mirror-cluster-test-images.yml` 把固定 `busybox:1.37.0` 同步到 ACR，记录工作流输出 digest，并在两个应用节点使用准备脚本完成 digest 校验；测试 Pod 使用 `imagePullPolicy: Never`，不得临时从公网仓库拉取镜像。
 - 2026-08-14 已按固定 digest 在两个应用节点完成测试镜像预拉，并通过跨节点 Pod、ClusterIP/EndpointSlice、CoreDNS 与 Calico NetworkPolicy 的真实验收；拒绝客户端按预期超时，临时 `cloudsentinel-smoke` Namespace 已自动删除。
-- 7 个节点当前均无 Memory、Disk 或 PID Pressure；三台 API Server 直连健康，Internal NLB 的双私网 VIP 连续 20 次健康检查零失败。`master-03` 单 API Backend 故障窗口内，NLB 再次连续 20 次零失败并保持 `/readyz=ok`；恢复后 Node 与 API Server Pod 均重新 Ready。集群底层验收已结束，可以进入平台控制器、Secret、数据层和 Argo CD 部署。
+- 7 个节点当前均无 Memory、Disk 或 PID Pressure；三台 API Server 直连健康，Internal NLB 的双私网 VIP 连续 20 次健康检查零失败。`master-03` 单 API Backend 故障窗口内，NLB 再次连续 20 次零失败并保持 `/readyz=ok`；恢复后 Node 与 API Server Pod 均重新 Ready。集群底层、平台控制器、Secret、实验数据层、Argo CD 与 Staging 业务链路已经完成真实验收；下一阶段是轻量监控平台。
 - 企业生产仍统一使用 Alibaba Cloud RDS 和 Tair；本次 StatefulSet 只属于 `lab-*` Overlay，不构成生产高可用方案。
 - 平台控制器由平台仓库维护；应用 GitOps 仓库只管理 CloudSentinel 的 Namespace 级资源。
 - ACR 个人版固定凭证只进入 GitHub Repository Secrets 和集群密钥后端，不进入 Inventory 或 Git。

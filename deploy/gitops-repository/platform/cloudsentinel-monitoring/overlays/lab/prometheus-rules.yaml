@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-rules
+  namespace: monitoring
+  annotations:
+    argocd.argoproj.io/sync-wave: "-20"
+data:
+  cloudsentinel.yml: |
+    groups:
+      - name: cloudsentinel
+        rules:
+          - alert: CloudSentinelProbeFailure
+            expr: cloudsentinel_probe_status == 0
+            for: 30s
+            labels:
+              severity: warning
+              cloudsentinel_incident: "true"
+            annotations:
+              summary: CloudSentinel probe is failing
+              description: Probe task {{ $labels.task_id }} for service {{ $labels.service_id }} is failing.
+          - alert: CloudSentinelWorkerDown
+            expr: up{job="cloudsentinel-worker"} == 0
+            for: 30s
+            labels:
+              severity: critical
+              cloudsentinel_incident: "false"
+            annotations:
+              summary: CloudSentinel worker is down
+              description: Prometheus cannot scrape a CloudSentinel worker.
+
