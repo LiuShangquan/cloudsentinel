@@ -1,0 +1,175 @@
+name: mirror-monitoring-images
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudsentinel-monitoring-image-mirror
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      ACR_PUBLIC_REGISTRY: crpi-1s64ln3ptbvgkqof.cn-beijing.personal.cr.aliyuncs.com
+      ACR_DEPLOY_REGISTRY: crpi-1s64ln3ptbvgkqof-vpc.cn-beijing.personal.cr.aliyuncs.com
+      ACR_NAMESPACE: cloudsentinel0306
+      PROMETHEUS_SOURCE: docker.io/prom/prometheus:v3.5.3
+      ALERTMANAGER_SOURCE: docker.io/prom/alertmanager:v0.32.1
+      GRAFANA_SOURCE: docker.io/grafana/grafana:13.0.1
+      METRICS_SERVER_SOURCE: registry.k8s.io/metrics-server/metrics-server:v0.8.1
+    steps:
+      - name: Checkout source tools
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - name: Validate mirror boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ github.repository_owner }}" = "${{ vars.RELEASE_ALLOWED_OWNER }}"
+          test "${{ github.event.repository.name }}" = "${{ vars.RELEASE_ALLOWED_REPOSITORY }}"
+          test "${GITHUB_REF}" = "refs/heads/main"
+          docker version
+          node --version
+
+      - name: Log in to ACR Personal Edition
+        env:
+          ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
+          ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${ACR_USERNAME}"
+          test -n "${ACR_PASSWORD}"
+          printf '%s' "${ACR_PASSWORD}" |
+            docker login "${ACR_PUBLIC_REGISTRY}" \
+              --username "${ACR_USERNAME}" \
+              --password-stdin
+
+      - name: Mirror and verify linux amd64 images
+        id: images
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mirror_image() {
+            local source="$1"
+            local target_name="$2"
+            local target_tag="$3"
+            local output_name="$4"
+            local target="${ACR_PUBLIC_REGISTRY}/${ACR_NAMESPACE}/${target_name}:${target_tag}"
+            local push_output
+            local digest
+
+            docker pull --platform linux/amd64 "${source}"
+            test "$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "${source}")" = linux/amd64
+            docker tag "${source}" "${target}"
+            push_output="$(docker push "${target}" 2>&1 | tee /dev/stderr)"
+            digest="$(printf '%s\n' "${push_output}" |
+              sed -nE 's/.*digest: (sha256:[0-9a-f]{64}).*/\1/p' |
+              tail -n 1)"
+            [[ "${digest}" =~ ^sha256:[0-9a-f]{64}$ ]]
+            docker pull --platform linux/amd64 "${target}@${digest}"
+            test "$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "${target}@${digest}")" = linux/amd64
+            echo "${output_name}=${digest}" >>"${GITHUB_OUTPUT}"
+          }
+
+          mirror_image "${PROMETHEUS_SOURCE}" cloudsentinel-prometheus v3.5.3 prometheus_digest
+          mirror_image "${ALERTMANAGER_SOURCE}" cloudsentinel-alertmanager v0.32.1 alertmanager_digest
+          mirror_image "${GRAFANA_SOURCE}" cloudsentinel-grafana 13.0.1 grafana_digest
+          mirror_image "${METRICS_SERVER_SOURCE}" cloudsentinel-metrics-server v0.8.1 metrics_server_digest
+
+      - name: Mint short-lived GitOps repository token
+        id: gitops-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.GITOPS_APP_CLIENT_ID }}
+          private-key: ${{ secrets.GITOPS_APP_PRIVATE_KEY }}
+          owner: ${{ vars.GITOPS_OWNER }}
+          repositories: ${{ vars.GITOPS_REPOSITORY_NAME }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Checkout GitOps repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          repository: ${{ vars.GITOPS_OWNER }}/${{ vars.GITOPS_REPOSITORY_NAME }}
+          token: ${{ steps.gitops-token.outputs.token }}
+          path: gitops
+          persist-credentials: true
+
+      - name: Open monitoring platform PR
+        env:
+          GH_TOKEN: ${{ steps.gitops-token.outputs.token }}
+          PROMETHEUS_DIGEST: ${{ steps.images.outputs.prometheus_digest }}
+          ALERTMANAGER_DIGEST: ${{ steps.images.outputs.alertmanager_digest }}
+          GRAFANA_DIGEST: ${{ steps.images.outputs.grafana_digest }}
+          METRICS_SERVER_DIGEST: ${{ steps.images.outputs.metrics_server_digest }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p gitops/platform/cloudsentinel-monitoring/overlays
+          cp -R \
+            deploy/gitops-repository/platform/cloudsentinel-monitoring/overlays/lab \
+            gitops/platform/cloudsentinel-monitoring/overlays/
+          cp deploy/gitops-repository/bootstrap/argocd/platform-project.yaml \
+            gitops/bootstrap/argocd/platform-project.yaml
+          cp deploy/gitops-repository/bootstrap/argocd/monitoring-application.yaml \
+            gitops/bootstrap/argocd/monitoring-application.yaml
+          cp deploy/gitops-repository/bootstrap/argocd/kustomization.yaml \
+            gitops/bootstrap/argocd/kustomization.yaml
+          cp deploy/gitops-repository/bootstrap/secret-store/clustersecretstore.yaml \
+            gitops/bootstrap/secret-store/clustersecretstore.yaml
+          cp deploy/gitops-repository/bootstrap/secret-store/rbac.yaml \
+            gitops/bootstrap/secret-store/rbac.yaml
+          cp deploy/gitops-repository/.github/workflows/validate.yml \
+            gitops/.github/workflows/validate.yml
+
+          node scripts/gitops-monitoring-images.mjs \
+            --file gitops/platform/cloudsentinel-monitoring/overlays/lab/kustomization.yaml \
+            --registry "${ACR_DEPLOY_REGISTRY}/${ACR_NAMESPACE}" \
+            --prometheus-digest "${PROMETHEUS_DIGEST}" \
+            --alertmanager-digest "${ALERTMANAGER_DIGEST}" \
+            --grafana-digest "${GRAFANA_DIGEST}" \
+            --metrics-server-digest "${METRICS_SERVER_DIGEST}"
+
+          cd gitops
+          kubectl kustomize platform/cloudsentinel-monitoring/overlays/lab >/dev/null
+          kubectl kustomize bootstrap/secret-store >/dev/null
+          kubectl kustomize bootstrap/argocd >/dev/null
+
+          if test -z "$(git status --porcelain -- \
+            platform/cloudsentinel-monitoring \
+            bootstrap/argocd \
+            bootstrap/secret-store \
+            .github/workflows/validate.yml)"; then
+            echo 'GitOps already contains the approved monitoring baseline; no PR is required.'
+            exit 0
+          fi
+
+          branch="release/monitoring-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          git switch -c "${branch}"
+          git config user.name cloudsentinel-release-bot
+          git config user.email cloudsentinel-release-bot@users.noreply.github.com
+          git add \
+            platform/cloudsentinel-monitoring \
+            bootstrap/argocd \
+            bootstrap/secret-store \
+            .github/workflows/validate.yml
+          git commit -m 'feat: add lightweight monitoring platform'
+          git push --set-upstream origin "${branch}"
+          gh pr create \
+            --repo '${{ vars.GITOPS_OWNER }}/${{ vars.GITOPS_REPOSITORY_NAME }}' \
+            --base main \
+            --head "${branch}" \
+            --title 'feat: add lightweight monitoring platform' \
+            --body 'Adds the constrained lab Prometheus, Alertmanager, Grafana, and Metrics Server baseline with ACR digest pinning and worker-monitor Local PV placement.'
+
+      - name: Log out of ACR
+        if: always()
+        run: docker logout "${ACR_PUBLIC_REGISTRY}" || true

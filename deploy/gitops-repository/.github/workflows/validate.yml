@@ -25,12 +25,18 @@ jobs:
             apps/cloudsentinel/overlays/lab-production
             bootstrap
             platform/cloudsentinel-data/overlays/lab
+            platform/cloudsentinel-monitoring/overlays/lab
             platform/cloudsentinel-secrets/overlays/lab-staging
             platform/cloudsentinel-secrets/overlays/lab-production
             platform/cloudsentinel-secrets/overlays/lab-data
           )
           if grep -RInE 'REPLACE_[A-Z0-9_]+|REPLACE_ORG|REPLACE_DOMAIN' "${active_paths[@]}"; then
             echo 'GitOps placeholders must be replaced before merge.' >&2
+            exit 1
+          fi
+          if grep -RInE 'MONITORING_[A-Z_]+_DIGEST' \
+            platform/cloudsentinel-monitoring/overlays/lab; then
+            echo 'Monitoring image digests must be populated by the mirror workflow before merge.' >&2
             exit 1
           fi
           for environment in lab-staging lab-production; do
@@ -70,6 +76,21 @@ jobs:
           fi
           data_image_count="$(grep -Ec 'image: crpi-1s64ln3ptbvgkqof-vpc\.cn-beijing\.personal\.cr\.aliyuncs\.com/cloudsentinel0306/cloudsentinel-(mysql|redis)@sha256:[0-9a-f]{64}$' "${data_output}")"
           test "${data_image_count}" -eq 6
+          monitoring_output="$(mktemp)"
+          kubectl kustomize platform/cloudsentinel-monitoring/overlays/lab >"${monitoring_output}"
+          test "$(grep -c '^kind: StatefulSet$' "${monitoring_output}")" -eq 2
+          test "$(grep -c '^kind: Deployment$' "${monitoring_output}")" -eq 2
+          test "$(grep -c '^kind: PersistentVolume$' "${monitoring_output}")" -eq 3
+          test "$(grep -c '^  persistentVolumeReclaimPolicy: Retain$' "${monitoring_output}")" -eq 3
+          test "$(grep -Ec '^[[:space:]]+node-role: monitoring$' "${monitoring_output}")" -eq 4
+          test "$(grep -Ec '^[[:space:]]+kubernetes.io/hostname: worker-monitor$' "${monitoring_output}")" -eq 4
+          monitoring_image_count="$(grep -Ec 'image: crpi-1s64ln3ptbvgkqof-vpc\.cn-beijing\.personal\.cr\.aliyuncs\.com/cloudsentinel0306/cloudsentinel-(prometheus|alertmanager|grafana|metrics-server)@sha256:[0-9a-f]{64}$' "${monitoring_output}")"
+          test "${monitoring_image_count}" -eq 4
+          grep -Fq 'credentials_file: /etc/alertmanager/secrets/webhook-token' "${monitoring_output}"
+          if grep -Eq '^  type: (NodePort|LoadBalancer)$' "${monitoring_output}"; then
+            echo 'monitoring services must remain private ClusterIP services.' >&2
+            exit 1
+          fi
           if grep -RIn 'newName: crpi-1s64ln3ptbvgkqof\.cn-beijing\.personal\.cr\.aliyuncs\.com' apps; then
             echo 'workloads must use the ACR VPC endpoint, not the public push endpoint.' >&2
             exit 1

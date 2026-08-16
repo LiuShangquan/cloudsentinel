@@ -55,6 +55,9 @@ jobs:
           bash -n deploy/kubernetes/install-external-secrets.sh
           bash -n deploy/kubernetes/build-argocd-bundle.sh
           bash -n deploy/kubernetes/install-argocd.sh
+          bash -n deploy/kubernetes/prepare-monitoring-storage-alinux4.sh
+          bash -n deploy/kubernetes/bootstrap-monitoring-source-secret.sh
+          bash -n deploy/kubernetes/verify-monitoring-platform.sh
           test "$(grep -c '^kind: Pod$' deploy/kubernetes/tests/network-smoke.yaml)" -eq 3
           test "$(grep -c 'imagePullPolicy: Never' deploy/kubernetes/tests/network-smoke.yaml)" -eq 3
           test "$(grep -c '^kind: NetworkPolicy$' deploy/kubernetes/tests/network-policy-smoke.yaml)" -eq 2
@@ -120,13 +123,31 @@ jobs:
             echo 'data services must remain private ClusterIP services' >&2
             exit 1
           fi
+          monitoring_template="$(mktemp -d)"
+          cp -R deploy/gitops-repository/platform/cloudsentinel-monitoring/overlays/lab/. \
+            "${monitoring_template}/"
+          sed -i \
+            -e 's/MONITORING_PROMETHEUS_DIGEST/0000000000000000000000000000000000000000000000000000000000000001/' \
+            -e 's/MONITORING_ALERTMANAGER_DIGEST/0000000000000000000000000000000000000000000000000000000000000002/' \
+            -e 's/MONITORING_GRAFANA_DIGEST/0000000000000000000000000000000000000000000000000000000000000003/' \
+            -e 's/MONITORING_METRICS_SERVER_DIGEST/0000000000000000000000000000000000000000000000000000000000000004/' \
+            "${monitoring_template}/kustomization.yaml"
+          monitoring_output="$(mktemp)"
+          kubectl kustomize "${monitoring_template}" >"${monitoring_output}"
+          test "$(grep -c '^kind: StatefulSet$' "${monitoring_output}")" -eq 2
+          test "$(grep -c '^kind: Deployment$' "${monitoring_output}")" -eq 2
+          test "$(grep -c '^kind: PersistentVolume$' "${monitoring_output}")" -eq 3
+          test "$(grep -Ec '^[[:space:]]+node-role: monitoring$' "${monitoring_output}")" -eq 4
+          test "$(grep -Ec '^[[:space:]]+kubernetes.io/hostname: worker-monitor$' "${monitoring_output}")" -eq 4
+          test "$(grep -Ec 'image: crpi-1s64ln3ptbvgkqof-vpc\.cn-beijing\.personal\.cr\.aliyuncs\.com/cloudsentinel0306/cloudsentinel-(prometheus|alertmanager|grafana|metrics-server)@sha256:[0-9a-f]{64}$' "${monitoring_output}")" -eq 4
           secret_store_output="$(mktemp)"
           kubectl kustomize deploy/gitops-repository/bootstrap/secret-store >"${secret_store_output}"
           test "$(grep -Ec '^[[:space:]]+- argocd$' "${secret_store_output}")" -eq 1
+          test "$(grep -Ec '^[[:space:]]+- monitoring$' "${secret_store_output}")" -eq 1
           kubectl kustomize deploy/gitops-repository/platform/cloudsentinel-secrets/overlays/lab-data >/dev/null
           argocd_bootstrap_output="$(mktemp)"
           kubectl kustomize deploy/gitops-repository/bootstrap/argocd >"${argocd_bootstrap_output}"
-          test "$(grep -Fc 'git@github.com:LiuShangquan/cloudsentinel-gitops.git' "${argocd_bootstrap_output}")" -eq 4
+          test "$(grep -Fc 'git@github.com:LiuShangquan/cloudsentinel-gitops.git' "${argocd_bootstrap_output}")" -eq 6
           if grep -Fq 'https://github.com/LiuShangquan/cloudsentinel-gitops.git' "${argocd_bootstrap_output}"; then
             echo 'Argo CD must use the SSH URL that matches the read-only Deploy Key.' >&2
             exit 1

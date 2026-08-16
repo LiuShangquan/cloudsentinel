@@ -37,7 +37,7 @@ kubectl describe node worker-data-01 | sed -n '/Taints:/,/Unschedulable:/p'
 - Label 为 `node-role=data`；
 - Taint 为 `dedicated=data:NoSchedule`；
 - 静态 Local PV 使用 `Immediate` 绑定并显式固定 `volumeName` 与节点亲和性；这是为了让没有常驻消费者的备份 PVC 也能在 Argo CD 后续波次开始前完成绑定。
-- 集群已安装 Argo CD/ApplicationSet、External Secrets Operator v1 API、Metrics Server 与支持 NetworkPolicy 的 Calico；当前 ESO 控制器固定为与 Kubernetes `1.35` 对齐的 `v2.8.0`；
+- 集群已安装 Argo CD/ApplicationSet、External Secrets Operator v1 API 与支持 NetworkPolicy 的 Calico；Metrics Server 随后由独立的轻量监控平台交付，当前 ESO 控制器固定为与 Kubernetes `1.35` 对齐的 `v2.8.0`；
 - ACR 中已手工创建业务、数据和平台所需私有仓库；数据层至少包括 `cloudsentinel-mysql` 与 `cloudsentinel-redis`，ESO 安装还需要 `cloudsentinel-external-secrets`。
 
 若 Label/Taint 尚未设置，应回到 `deployment-guide.md` 的节点隔离步骤，核对后手工执行，不要修改 GitOps 清单绕过隔离。

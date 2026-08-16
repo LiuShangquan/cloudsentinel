@@ -7,6 +7,7 @@ CloudSentinel 是一个基于 Go 的基础设施探测与故障事件平台。�
 - 本地开发与回归：Docker Compose MVP（MySQL、Redis、API、Worker、Prometheus、Alertmanager、Grafana）。
 - 企业生产：Kubernetes + Kustomize + Argo CD，MySQL/Redis 统一使用集群外阿里云 RDS/Tair。
 - 学生练习集群：保持 3 Control Plane + 4 Worker 拓扑，MySQL/Redis 以单副本 StatefulSet 固定运行在 `worker-data-01`，使用 Retain 本地 PV 和定时逻辑备份；这是低成本单点方案，不具备生产高可用性。
+- 学生监控：Prometheus、Alertmanager、Grafana 与 Metrics Server 使用低并发、短保留和单副本配置固定运行在 `worker-monitor`；不包含日志平台，也不冒充生产高可用。
 - CI/CD：GitHub Actions 构建三个不可变镜像，推送到北京 ACR 个人版并创建独立 GitOps 仓库 PR；工作流不直接操作 Kubernetes。
 - 数据库变更：版本化 SQL Migration；生产由 Argo CD PreSync Job 在应用滚动更新前执行。
 - 密钥：Git 只保存 ExternalSecret 引用，实际值由平台密钥控制面提供。
@@ -46,6 +47,7 @@ API /metrics + Worker /metrics -> Prometheus -> Alertmanager -> API Webhook -> I
 - `docs/gitops.md`：企业 GitOps 架构、接入与日常发布。
 - `docs/operations.md`：运行、回滚、Migration 和故障处置。
 - `docs/kubernetes`：自建 Kubernetes 集群与网络手册。
+- `docs/kubernetes/lab-monitoring-platform.md`：学生集群轻量监控平台的容量边界、部署和验收。
 
 ## 本地启动
 
