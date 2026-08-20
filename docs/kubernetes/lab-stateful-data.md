@@ -125,7 +125,7 @@ kubectl get clustersecretstore cloudsentinel-secret-store
 
 - Repository Secrets：`ACR_USERNAME`、`ACR_PASSWORD`、`GITOPS_APP_PRIVATE_KEY`；
 - Repository Variables：既有 GitOps App 变量，以及 `RELEASE_ALLOWED_OWNER`、`RELEASE_ALLOWED_REPOSITORY`；
-- GitHub App 对 `cloudsentinel-gitops` 有 Contents/Pull Requests 写权限。
+- GitHub App 对 `cloudsentinel-gitops` 有 Contents/Pull Requests 写权限；如果同步包含 `.github/workflows` 的平台基线，还需显式授予 Workflows 写权限。
 
 工作流成功后合并数据镜像 PR，并确认 GitOps 校验绿色。不要让 Kubernetes 节点直接从 Docker Hub 拉取。
 
