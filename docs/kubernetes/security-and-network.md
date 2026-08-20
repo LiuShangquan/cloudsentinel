@@ -104,7 +104,7 @@ unmanaged-devices=interface-name:cali*;interface-name:tunl*;interface-name:vxlan
 - TCP 2379/2380 只能在 Control Plane 内部访问，不得对 Worker、办公网或公网开放。
 - TCP 6443 的 Backend 入站需要允许 NLB 实际 Health Check/转发来源；以阿里云控制台显示的 NLB/VSwitch Source 为准。
 - NodePort 范围不要整体向 `0.0.0.0/0` 开放。未来确需 NodePort 时，只开放具体端口和具体来源。
-- 当前学生集群的唯一例外是 `worker-monitor:30300/TCP` 上的 Grafana HTTPS。只给该实例的安全组增加精确端口规则；客户端公网 IP 无法固定时可临时使用 `0.0.0.0/0`，但必须记录暴露窗口并在演示结束后删除。不得据此开放完整 NodePort 范围。
+- 当前学生集群只批准两个公网 NodePort 例外：`worker-monitor:30300/TCP` 上的 Grafana HTTPS，以及选定应用 Worker `30443/TCP` 上的 Staging Web HTTPS。只给对应实例的安全组增加精确端口规则；客户端公网 IP 无法固定时可临时使用 `0.0.0.0/0`，但必须记录暴露窗口并在演示结束后删除。不得据此开放完整 NodePort 范围，也不得直接暴露 API、MySQL、Redis、Argo CD、Prometheus 或 Alertmanager。
 - Security Group 变更后应逐条记录 Rule ID、Source、Target、负责人和回滚方式。
 
 Kubernetes 官方默认端口可参考[端口与协议文档](https://kubernetes.io/docs/reference/networking/ports-and-protocols/)。自定义组件参数会改变实际端口，最终以 kubeadm Config 和进程监听状态为准。
@@ -215,6 +215,7 @@ worker-*                 -> 各自私网 IP
 - [ ] TCP 2379/2380 只允许 Control Plane SG 内部通信。
 - [ ] 未向公网开放完整 NodePort Range。
 - [ ] 若启用实验 Grafana 公网入口，仅 `worker-monitor:30300/TCP` 可达，且已记录来源与关闭时间。
+- [ ] 若启用实验 Staging Web 公网入口，仅选定应用 Worker 的 `30443/TCP` 可达，且已记录来源与关闭时间。
 - [ ] NLB 是 Internal，Listener 与 Backend 均为 TCP 6443。
 - [ ] NLB 3 个 Backend 跨故障域并启用 Health Check。
 - [ ] Private DNS 与 `CONTROL_PLANE_ENDPOINT` 一致。

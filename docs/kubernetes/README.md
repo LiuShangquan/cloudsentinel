@@ -38,7 +38,8 @@
 4. 从[部署手册](deployment-guide.md)第 0 节开始逐条执行，直至第 30 节验收。
 5. 集群通过验收后，按[实验 StatefulSet 数据层](lab-stateful-data.md)准备数据节点、密钥、ACR 镜像和 Argo CD 同步顺序。
 6. Staging 业务验收通过后，按[轻量监控平台](lab-monitoring-platform.md)准备监控节点、镜像、Secret 和 Argo CD Application。
-7. 发生异常时查阅[故障排查与重建](troubleshooting.md)。
+7. 需要从公网演示 Staging 门户时，按[学生集群 Web 控制台公网访问](lab-web-public-access.md)启用短期 HTTPS NodePort；该入口不是生产方案。
+8. 发生异常时查阅[故障排查与重建](troubleshooting.md)。
 
 ## 各文档作用
 
@@ -50,6 +51,7 @@
 | `troubleshooting.md` | 高频故障的现象、检查、解决方向、恢复验证，以及受控重建流程 |
 | `lab-stateful-data.md` | 学生集群 MySQL/Redis StatefulSet、静态本地存储、Secret、备份与启用顺序 |
 | `lab-monitoring-platform.md` | 学生集群 Prometheus、Alertmanager、Grafana、Metrics Server 的容量边界、启用与验收 |
+| `lab-web-public-access.md` | 学生集群 Staging Web 门户的公网 IP HTTPS NodePort、证书、安全组、验收与回滚 |
 | `inventory.example.yaml` | 不含 Secret 的环境变量与节点信息模板 |
 | `inventory.lab.yaml` | 当前 8 台 ECS 的私网地址、角色、容量和部署阻断项；不记录公网地址或 Secret |
 | `kubeadm-init-master-01.yaml` | 当前实验集群完成变量替换的 kubeadm v1beta4 初始化配置；不含 Bootstrap Token、Certificate Key 或其他 Secret |
