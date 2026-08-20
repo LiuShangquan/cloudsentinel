@@ -125,8 +125,23 @@ jobs:
             fi
             grep -q 'kind: Deployment' "${output}"
             grep -q 'argocd.argoproj.io/hook: PreSync' "${output}"
-            image_count="$(grep -Ec 'image: crpi-1s64ln3ptbvgkqof-vpc\.cn-beijing\.personal\.cr\.aliyuncs\.com/cloudsentinel0306/cloudsentinel-(api|worker|migrate|web)@sha256:' "${output}")"
-            test "${image_count}" -eq 4
+            for component in api worker migrate; do
+              component_count="$(grep -Ec "image: crpi-1s64ln3ptbvgkqof-vpc\\.cn-beijing\\.personal\\.cr\\.aliyuncs\\.com/cloudsentinel0306/cloudsentinel-${component}@sha256:" "${output}")"
+              if [[ "${component_count}" -ne 1 ]]; then
+                echo "${environment}: expected exactly one ${component} image, found ${component_count}" >&2
+                exit 1
+              fi
+            done
+            web_count="$(grep -Ec 'image: crpi-1s64ln3ptbvgkqof-vpc\.cn-beijing\.personal\.cr\.aliyuncs\.com/cloudsentinel0306/cloudsentinel-web@sha256:' "${output}")"
+            if [[ "${environment}" == "lab-staging" ]]; then
+              expected_web_count=2
+            else
+              expected_web_count=1
+            fi
+            if [[ "${web_count}" -ne "${expected_web_count}" ]]; then
+              echo "${environment}: expected ${expected_web_count} web image reference(s), found ${web_count}" >&2
+              exit 1
+            fi
           done
           migration_job=deploy/gitops-repository/apps/cloudsentinel/base/migration-job.yaml
           grep -q '^      serviceAccountName: default$' "${migration_job}"
