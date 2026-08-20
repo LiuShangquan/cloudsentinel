@@ -49,6 +49,12 @@ spec:
             cidr: 172.29.253.155/32
         - ipBlock:
             cidr: 172.29.253.152/32
+        - ipBlock:
+            cidr: 10.244.184.64/32
+        - ipBlock:
+            cidr: 10.244.222.0/32
+        - ipBlock:
+            cidr: 10.244.133.128/32
       ports:
         - {protocol: TCP, port: 9090}
         - {protocol: TCP, port: 9093}
