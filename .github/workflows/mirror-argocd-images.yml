@@ -23,7 +23,7 @@ jobs:
       ARGOCD_MANIFEST_SHA256: a32bf36a437071a1f563ebf9e81c8a39fba9057c17db7d5d041afb7b6e3f4afe
     steps:
       - name: Checkout source repository
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Validate mirror boundary
         shell: bash
