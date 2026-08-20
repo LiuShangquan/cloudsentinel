@@ -4,10 +4,12 @@ namespace: cloudsentinel-staging
 resources:
   - ../../base
   - namespace.yaml
+  - web-public.yaml
 patches:
   - path: environment-patch.yaml
   - path: lab-data-patch.yaml
   - path: app-node-patch.yaml
+  - path: web-public-deployment-patch.yaml
 images:
   - name: cloudsentinel-api
     newName: crpi-1s64ln3ptbvgkqof-vpc.cn-beijing.personal.cr.aliyuncs.com/cloudsentinel0306/cloudsentinel-api

@@ -1,0 +1,114 @@
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: cloudsentinel-web-public-tls
+  annotations:
+    argocd.argoproj.io/sync-wave: "-20"
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: cloudsentinel-secret-store
+  target:
+    name: cloudsentinel-web-public-tls
+    creationPolicy: Owner
+    deletionPolicy: Retain
+    template:
+      type: kubernetes.io/tls
+      engineVersion: v2
+      data:
+        tls.crt: "{{ .tlsCertificate }}"
+        tls.key: "{{ .tlsPrivateKey }}"
+        public-url: "{{ .publicURL }}"
+  data:
+    - secretKey: tlsCertificate
+      remoteRef:
+        key: cloudsentinel-web-public-tls
+        property: tls.crt
+    - secretKey: tlsPrivateKey
+      remoteRef:
+        key: cloudsentinel-web-public-tls
+        property: tls.key
+    - secretKey: publicURL
+      remoteRef:
+        key: cloudsentinel-web-public-tls
+        property: public-url
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloudsentinel-web-public-nginx
+  annotations:
+    argocd.argoproj.io/sync-wave: "-10"
+data:
+  default.conf: |
+    server {
+        listen 8443 ssl;
+        server_name _;
+        server_tokens off;
+
+        ssl_certificate /etc/nginx/tls/tls.crt;
+        ssl_certificate_key /etc/nginx/tls/tls.key;
+        ssl_protocols TLSv1.2 TLSv1.3;
+        ssl_session_cache shared:TLS:1m;
+        ssl_session_timeout 10m;
+
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Frame-Options "DENY" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+        location = /tls-healthz {
+            access_log off;
+            default_type text/plain;
+            return 200 "ok\n";
+        }
+
+        location / {
+            proxy_pass http://127.0.0.1:8080;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto https;
+            proxy_connect_timeout 5s;
+            proxy_read_timeout 30s;
+            proxy_send_timeout 30s;
+        }
+    }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cloudsentinel-web-public
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  type: NodePort
+  externalTrafficPolicy: Cluster
+  selector:
+    app.kubernetes.io/name: cloudsentinel
+    app.kubernetes.io/component: web
+  ports:
+    - name: https
+      protocol: TCP
+      port: 443
+      targetPort: public-https
+      nodePort: 30443
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cloudsentinel-web-public-ingress
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: cloudsentinel
+      app.kubernetes.io/component: web
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 8443

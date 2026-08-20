@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloudsentinel-web
+spec:
+  template:
+    spec:
+      containers:
+        - name: public-tls-proxy
+          image: cloudsentinel-web
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: public-https
+              containerPort: 8443
+              protocol: TCP
+          resources:
+            requests: {cpu: 10m, memory: 24Mi}
+            limits: {cpu: 100m, memory: 64Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 101
+            runAsGroup: 101
+            capabilities:
+              drop: ["ALL"]
+          startupProbe:
+            tcpSocket: {port: public-https}
+            periodSeconds: 2
+            failureThreshold: 30
+          livenessProbe:
+            tcpSocket: {port: public-https}
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          readinessProbe:
+            tcpSocket: {port: public-https}
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 2
+          volumeMounts:
+            - name: public-nginx-config
+              mountPath: /etc/nginx/conf.d/default.conf
+              subPath: default.conf
+              readOnly: true
+            - name: public-tls
+              mountPath: /etc/nginx/tls
+              readOnly: true
+            - name: public-nginx-cache
+              mountPath: /var/cache/nginx
+            - name: public-nginx-tmp
+              mountPath: /tmp
+      volumes:
+        - name: public-nginx-config
+          configMap:
+            name: cloudsentinel-web-public-nginx
+        - name: public-tls
+          secret:
+            secretName: cloudsentinel-web-public-tls
+        - name: public-nginx-cache
+          emptyDir: {sizeLimit: 8Mi}
+        - name: public-nginx-tmp
+          emptyDir: {sizeLimit: 8Mi}
