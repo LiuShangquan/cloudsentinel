@@ -97,6 +97,19 @@ jobs:
           sbom: false
           cache-from: type=gha,scope=cloudsentinel-migrate
           cache-to: type=gha,mode=max,scope=cloudsentinel-migrate
+      - name: Build and push Web
+        id: web
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: ./web
+          target: runtime
+          push: true
+          tags: ${{ env.ACR_PUBLIC_REGISTRY }}/${{ env.ACR_NAMESPACE }}/cloudsentinel-web:${{ github.sha }}
+          platforms: linux/amd64
+          provenance: false
+          sbom: false
+          cache-from: type=gha,scope=cloudsentinel-web
+          cache-to: type=gha,mode=max,scope=cloudsentinel-web
       - name: Mint short-lived GitOps repository token
         id: gitops-token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
@@ -120,6 +133,7 @@ jobs:
           API_DIGEST: ${{ steps.api.outputs.digest }}
           WORKER_DIGEST: ${{ steps.worker.outputs.digest }}
           MIGRATE_DIGEST: ${{ steps.migrate.outputs.digest }}
+          WEB_DIGEST: ${{ steps.web.outputs.digest }}
         shell: bash
         run: |
           set -euo pipefail
@@ -128,7 +142,8 @@ jobs:
             --registry "${ACR_DEPLOY_REGISTRY}/${ACR_NAMESPACE}" \
             --api-digest "${API_DIGEST}" \
             --worker-digest "${WORKER_DIGEST}" \
-            --migrate-digest "${MIGRATE_DIGEST}"
+            --migrate-digest "${MIGRATE_DIGEST}" \
+            --web-digest "${WEB_DIGEST}"
           if git -C gitops diff --quiet -- apps/cloudsentinel/overlays/lab-staging/kustomization.yaml; then
             echo "Staging already references these image digests."
             exit 0

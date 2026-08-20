@@ -18,6 +18,10 @@ spec:
   policyTypes: [Ingress]
   ingress:
     - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: cloudsentinel
+              app.kubernetes.io/component: web
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: ingress-nginx
@@ -44,3 +48,50 @@ spec:
               kubernetes.io/metadata.name: monitoring
       ports:
         - {protocol: TCP, port: 9091}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cloudsentinel-web-ingress
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: cloudsentinel
+      app.kubernetes.io/component: web
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - {protocol: TCP, port: 8080}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cloudsentinel-web-egress
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: cloudsentinel
+      app.kubernetes.io/component: web
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: cloudsentinel
+              app.kubernetes.io/component: api
+      ports:
+        - {protocol: TCP, port: 8080}
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - {protocol: UDP, port: 53}
+        - {protocol: TCP, port: 53}

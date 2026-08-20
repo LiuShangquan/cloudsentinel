@@ -27,7 +27,7 @@ Argo CD 固定为 `v3.5.0`，官方测试矩阵覆盖 Kubernetes `v1.35`。当�
 
 还需准备：
 
-- 北京 ACR 个人版实例 `crpi-1s64ln3ptbvgkqof`，命名空间 `cloudsentinel0306`，至少包含业务、数据和平台使用的私有 Repository：`cloudsentinel-api`、`cloudsentinel-worker`、`cloudsentinel-migrate`、`cloudsentinel-mysql`、`cloudsentinel-redis`、`cloudsentinel-external-secrets`、`cloudsentinel-prometheus`、`cloudsentinel-alertmanager`、`cloudsentinel-grafana`、`cloudsentinel-metrics-server`；
+- 北京 ACR 个人版实例 `crpi-1s64ln3ptbvgkqof`，命名空间 `cloudsentinel0306`，至少包含业务、数据和平台使用的私有 Repository：`cloudsentinel-api`、`cloudsentinel-worker`、`cloudsentinel-migrate`、`cloudsentinel-web`、`cloudsentinel-mysql`、`cloudsentinel-redis`、`cloudsentinel-external-secrets`、`cloudsentinel-prometheus`、`cloudsentinel-alertmanager`、`cloudsentinel-grafana`、`cloudsentinel-metrics-server`；
 - 当前学生集群使用 `worker-data-01` 上的单副本 MySQL/Redis StatefulSet；正式企业生产切换为 RDS/Tair 后再准备私网 Endpoint、多可用区和托管备份；
 - 只安装在 GitOps 仓库的 GitHub App，权限限定为 Contents 读写、Pull Requests 读写和 Workflows 读写；Workflows 权限仅用于在监控平台 PR 中同步 GitOps 校验工作流，GitHub App 仍不允许绕过 PR 或直接合并 `main`；
 - GitHub Repository Secrets：`ACR_USERNAME`、`ACR_PASSWORD`、`GITOPS_APP_PRIVATE_KEY`；
@@ -82,8 +82,8 @@ Registry 远端对象提供完整 `.dockerconfigjson`，其中认证服务器必
 首次业务发布前，先在 ACR 控制台创建 `cloudsentinel-mysql` 和 `cloudsentinel-redis` 两个私有仓库，再从源码仓库 `main` 手工运行 `mirror-lab-data-images`。它只同步当前 x86 ECS 需要的 `linux/amd64` 固定上游版本，直接采用 ACR Push 返回的 digest，并在该 digest 与 GitOps 不一致时创建数据镜像 PR。数据层健康后再开始下面的业务镜像发布。
 
 1. Source PR 通过格式化、Vet、单测、构建和 Kustomize Render。
-2. 合并 `main` 触发 `release-images-and-stage`；GitHub 托管 Runner 使用 Repository Secrets 中的固定凭证登录 ACR 个人版公网端点，BuildKit 推送三个固定 `linux/amd64` 镜像。同一分支重复触发时只保留最新运行，旧的排队或执行中发布会被取消；镜像标签不可变，只有三个构建全部成功后才创建 GitOps PR。当前 ACR 个人版实测拒绝 BuildKit 附着式 SBOM/Provenance 使用的 OCI Attestation Manifest（`application/vnd.oci.empty.v1+json`），因此发布工作流显式设置 `provenance: false` 与 `sbom: false`；镜像仍按 Registry 返回的不可变 Digest 晋级，但这不等价于完整供应链证明。SBOM/Provenance 必须在独立 Artifact 流程实现，或在迁移到支持 OCI Referrers/Attestations 的 Registry 后重新附着。
-3. 工作流取得每个镜像 digest，把镜像名称转换为同实例的北京 VPC 端点并创建 Staging GitOps PR。审核并合并后 Argo CD 自动运行 Migration，再滚动 API/Worker。
+2. 合并 `main` 触发 `release-images-and-stage`；GitHub 托管 Runner 使用 Repository Secrets 中的固定凭证登录 ACR 个人版公网端点，BuildKit 推送 API、Worker、Migration 和 Web 四个固定 `linux/amd64` 镜像。同一分支重复触发时只保留最新运行，旧的排队或执行中发布会被取消；镜像标签不可变，只有四个构建全部成功后才创建 GitOps PR。当前 ACR 个人版实测拒绝 BuildKit 附着式 SBOM/Provenance 使用的 OCI Attestation Manifest（`application/vnd.oci.empty.v1+json`），因此发布工作流显式设置 `provenance: false` 与 `sbom: false`；镜像仍按 Registry 返回的不可变 Digest 晋级，但这不等价于完整供应链证明。SBOM/Provenance 必须在独立 Artifact 流程实现，或在迁移到支持 OCI Referrers/Attestations 的 Registry 后重新附着。
+3. 工作流取得每个镜像 digest，把镜像名称转换为同实例的北京 VPC 端点并创建 Staging GitOps PR。审核并合并后 Argo CD 自动运行 Migration，再滚动 API、Worker 和 Web。
 4. 验证 Staging Migration、Pod Ready、`/readyz`、Probe 结果、Incident Webhook、错误率和延迟。
 5. 从源码仓库 `main` 手工触发 `promote-production` 并输入 `PROMOTE`。工作流把 Staging 的完全相同 digest 复制到 Production 并创建 PR；至少由另一名负责人审阅，但 GitHub Free 私有仓库不会强制该审批。
 6. 在变更窗口合并 Production PR；发布负责人确认 Argo Diff 和最近一次 MySQL/Redis 逻辑备份后执行 Argo CD Sync。
@@ -94,4 +94,4 @@ Registry 远端对象提供完整 `.dockerconfigjson`，其中认证服务器必
 
 同步前确认集群和 ACR 均位于 `cn-beijing`，数据节点目录已准备、所有 `ExternalSecret` Ready、ACR VPC Pull Secret 有效、两个 StatefulSet Ready、Bootstrap Job 成功且逻辑备份可写。当前 `lab-*` Overlay 不含 Ingress，因此不需要先准备域名。Migration 是 PreSync Hook，会早于应用的普通 ServiceAccount 创建；它因此使用 Namespace 自动生成的 `default` ServiceAccount、保持 `automountServiceAccountToken: false`，并只在 Pod 上显式引用 ACR Pull Secret。PreSync Job 失败时 Argo CD 不会更新应用；先检查 Job 退出码、MySQL 账户和数据层健康，不要跳过 Hook 手工滚动 Deployment。
 
-真实 ACR VPC 镜像拉取、External Secrets `v2.8.0`、Kubernetes Provider `ClusterSecretStore`、受控源 Secret、Argo CD `v3.5.0` 安装和 GitOps 仓库只读接入已在 2026-08-15 验证。三个 Secret Application 已成功物化 ExternalSecret，并通过 Server-Side Diff 达到 `Synced/Healthy`。实验数据层的 MySQL/Redis StatefulSet、Local PV/PVC、认证连接和 Argo CD 收敛已在 2026-08-15 验证；备份 CronJob 已创建，但实际备份与恢复演练仍为 `NOT VERIFIED`。Staging 于 2026-08-16 完成 Migration、API/Worker 2 副本、内部健康检查、JWT 身份认证及真实 Host/Service/Probe Task 到 HTTP 200 Probe Result 的业务 E2E 验收，测试业务记录已禁用，临时 Namespace 已删除。轻量监控平台、Production、Ingress 和证书仍为 `NOT VERIFIED`，必须按顺序取得运行时证据后再更新状态。
+真实 ACR VPC 镜像拉取、External Secrets `v2.8.0`、Kubernetes Provider `ClusterSecretStore`、受控源 Secret、Argo CD `v3.5.0` 安装和 GitOps 仓库只读接入已在 2026-08-15 验证。三个 Secret Application 已成功物化 ExternalSecret，并通过 Server-Side Diff 达到 `Synced/Healthy`。实验数据层的 MySQL/Redis StatefulSet、Local PV/PVC、认证连接和 Argo CD 收敛已在 2026-08-15 验证；备份 CronJob 已创建，但实际备份与恢复演练仍为 `NOT VERIFIED`。Staging 于 2026-08-16 完成 Migration、API/Worker 2 副本、内部健康检查、JWT 身份认证及真实 Host/Service/Probe Task 到 HTTP 200 Probe Result 的业务 E2E 验收，测试业务记录已禁用，临时 Namespace 已删除。轻量监控平台已在 2026-08-20 达到 `Synced/Healthy`，Prometheus、Alertmanager、Grafana 与 Metrics Server 均为 Ready；Grafana 自签名 TLS NodePort 已完成实验公网访问。Production、正式域名和受信任证书仍为 `NOT VERIFIED`。

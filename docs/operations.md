@@ -32,9 +32,9 @@ kubectl -n cloudsentinel-production get events --sort-by=.lastTimestamp
 
 适用于 Migration 向后兼容、数据库无破坏性变化的发布：
 
-1. 冻结新的 GitOps 合并，记录故障版本、三个 digest、开始时间和影响。
+1. 冻结新的 GitOps 合并，记录故障版本、API/Worker/Migration/Web 四个 digest、开始时间和影响。
 2. 在 GitOps 历史中找到上一个健康 Production `kustomization.yaml`。
-3. 创建回滚 PR，只恢复 API/Worker/Migration digest；通过 CODEOWNERS 和必需检查。
+3. 创建回滚 PR，只恢复 API/Worker/Migration/Web digest；通过 CODEOWNERS 和必需检查。
 4. 合并后查看 Argo Diff，再同步并观察 Readiness、错误率、Probe/Incident 链路。
 
 不要使用 `kubectl set image` 长期绕过 Git；它会产生漂移并被 Argo CD 覆盖。

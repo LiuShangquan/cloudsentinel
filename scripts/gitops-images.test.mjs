@@ -16,6 +16,9 @@ const sample = `images:
   - name: cloudsentinel-migrate
     newName: old/migrate
     digest: sha256:REPLACE_MIGRATE_DIGEST
+  - name: cloudsentinel-web
+    newName: old/web
+    digest: sha256:REPLACE_WEB_DIGEST
 `;
 
 function fixture() {
@@ -26,7 +29,7 @@ function fixture() {
 
 test("writes and reads immutable image references", () => {
   const digest = `sha256:${"a".repeat(64)}`;
-  const images = Object.fromEntries(["api", "worker", "migrate"].map((component) => [component, {
+  const images = Object.fromEntries(["api", "worker", "migrate", "web"].map((component) => [component, {
     name: `registry/${component}`,
     digest,
   }]));
@@ -37,7 +40,7 @@ test("writes and reads immutable image references", () => {
 });
 
 test("rejects mutable or malformed digests", () => {
-  const images = Object.fromEntries(["api", "worker", "migrate"].map((component) => [component, {
+  const images = Object.fromEntries(["api", "worker", "migrate", "web"].map((component) => [component, {
     name: `registry/${component}`,
     digest: "latest",
   }]));

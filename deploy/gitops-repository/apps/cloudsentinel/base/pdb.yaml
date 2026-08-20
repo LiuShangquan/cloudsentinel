@@ -23,3 +23,16 @@ spec:
     matchLabels:
       app.kubernetes.io/name: cloudsentinel
       app.kubernetes.io/component: worker
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: cloudsentinel-web
+  labels:
+    app.kubernetes.io/component: web
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cloudsentinel
+      app.kubernetes.io/component: web

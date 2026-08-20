@@ -18,6 +18,16 @@ spec:
       nodeSelector:
         node-role: app
 ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloudsentinel-web
+spec:
+  template:
+    spec:
+      nodeSelector:
+        node-role: app
+---
 apiVersion: batch/v1
 kind: Job
 metadata:
