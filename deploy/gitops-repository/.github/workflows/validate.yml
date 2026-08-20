@@ -87,10 +87,13 @@ jobs:
           monitoring_image_count="$(grep -Ec 'image: crpi-1s64ln3ptbvgkqof-vpc\.cn-beijing\.personal\.cr\.aliyuncs\.com/cloudsentinel0306/cloudsentinel-(prometheus|alertmanager|grafana|metrics-server)@sha256:[0-9a-f]{64}$' "${monitoring_output}")"
           test "${monitoring_image_count}" -eq 4
           grep -Fq 'credentials_file: /etc/alertmanager/secrets/webhook-token' "${monitoring_output}"
-          if grep -Eq '^  type: (NodePort|LoadBalancer)$' "${monitoring_output}"; then
-            echo 'monitoring services must remain private ClusterIP services.' >&2
-            exit 1
-          fi
+          test "$(grep -c '^  type: NodePort$' "${monitoring_output}")" -eq 1
+          test "$(grep -c '^  externalTrafficPolicy: Local$' "${monitoring_output}")" -eq 1
+          test "$(grep -c '^    nodePort: 30300$' "${monitoring_output}")" -eq 1
+          test "$(grep -c '^  type: LoadBalancer$' "${monitoring_output}")" -eq 0
+          grep -Fq 'name: grafana-public' "${monitoring_output}"
+          grep -Fq 'name: grafana-public-tls' "${monitoring_output}"
+          test "$(grep -Ec '^[[:space:]]+- cloudsentinel-grafana-public-tls$' bootstrap/secret-store/rbac.yaml)" -eq 1
           if grep -RIn 'newName: crpi-1s64ln3ptbvgkqof\.cn-beijing\.personal\.cr\.aliyuncs\.com' apps; then
             echo 'workloads must use the ACR VPC endpoint, not the public push endpoint.' >&2
             exit 1

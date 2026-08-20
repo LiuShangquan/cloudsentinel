@@ -13,7 +13,7 @@
 
 当前不安装 Prometheus Operator、`kube-prometheus-stack`、node-exporter、kube-state-metrics、Loki 或日志采集系统。这样可以在 2 vCPU、2 GiB 的 `worker-monitor` 上保留完整业务监控链路，同时避免把练习集群压垮。Metrics Server 不是 Prometheus 的替代品，它只提供短期 CPU/内存资源指标。
 
-所有服务保持 `ClusterIP`，没有 Ingress、公网负载均衡、域名或 TLS 暴露。需要查看 Grafana 时，由操作者临时执行端口转发。
+Prometheus、Alertmanager 和 Metrics Server 保持 `ClusterIP`。经项目所有者批准，Grafana 额外使用固定 `30300/TCP` NodePort，通过 `worker-monitor` 公网 IP 提供 HTTPS 登录；该学生环境例外不使用 Ingress、公网负载均衡或域名，也不代表生产暴露方案。
 
 ## 2. 调度、容量与安全
 
@@ -22,6 +22,7 @@
 - 三个 Local PV 使用 `Retain`，删除 PVC 不会自动删除宿主机目录；Local PV 仍然是单节点存储，不等价于备份。
 - Prometheus 只获得发现 Pod、Service、EndpointSlice 和 Namespace 的只读权限。
 - Grafana 管理员密码、Alertmanager Webhook Token 和 ACR Pull Secret 通过 External Secrets 物化，Git 中没有明文。
+- Grafana 公网 TLS 私钥、证书和公网 URL 也只存在于受保护的源 Secret；GitOps 清单只引用键名。
 - 监控 Namespace 默认拒绝入站流量，仅允许 Namespace 内部组件互访。CloudSentinel 应用的既有 NetworkPolicy 已允许 `monitoring` Namespace 抓取指标。
 - 监控镜像只使用 ACR VPC 地址和不可变 digest，节点不直接从 Docker Hub、GHCR 或 `registry.k8s.io` 拉取。
 
@@ -114,21 +115,44 @@ bash /root/verify-monitoring-platform.sh
 
 成功标记为 `MONITORING_PLATFORM_VERIFY=PASS`。脚本只读取状态，不创建业务数据，也不打印 Secret。
 
-## 5. 查看 Grafana
+## 5. 通过公网 IP 查看 Grafana
 
-在能够访问 Kubernetes API 的管理终端执行：
+### 5.1 创建公网 TLS 源 Secret
+
+在 `master-01` 上传 `deploy/kubernetes/bootstrap-grafana-public-tls.sh`，把变量替换为 `worker-monitor` 当前公网 IPv4 后执行：
 
 ```bash
-kubectl -n monitoring port-forward service/grafana 3000:3000
+export GRAFANA_PUBLIC_IP='<WORKER_MONITOR_PUBLIC_IPV4>'
+export KUBERNETES_API_SERVER='https://172.29.253.154:6443'
+chmod 0700 /root/bootstrap-grafana-public-tls.sh
+bash /root/bootstrap-grafana-public-tls.sh
 ```
 
-浏览器访问 `http://127.0.0.1:3000`。用户名默认为 `admin`，密码是创建监控源 Secret 时输入的值。不要使用 `kubectl get secret -o yaml` 或把密码粘贴到聊天、日志和截图中。
+`KUBERNETES_API_SERVER` 可指定当前健康的控制面后端，避免一次性引导操作被 NLB 短暂抖动阻塞。脚本生成带该 IP SAN 的 30 天自签名证书，只把证书、私钥与 `https://<IP>:30300/` 写入 `cloudsentinel-secret-source/cloudsentinel-grafana-public-tls`，不会打印私钥。公网 IP 改变或证书到期时必须使用新 IP 重新执行并让 ExternalSecret 刷新。
+
+随后更新 Secret Store RBAC，并通过 GitOps PR 同步本页对应的 Grafana HTTPS、ExternalSecret、NodePort 与 NetworkPolicy 变更。
+
+### 5.2 配置阿里云安全组
+
+只在 `worker-monitor` 实例所属安全组增加一条入方向规则：
+
+| 授权策略 | 协议 | 端口 | 来源 | 说明 |
+|---|---|---:|---|---|
+| 允许 | TCP | 30300 | 当前管理公网 IP `/32`；确实无法固定时才用 `0.0.0.0/0` | Grafana HTTPS |
+
+不得开放 `30000-32767` 整段，也不要给其他节点增加 30300。动态公网来源迫使使用 `0.0.0.0/0` 时，Grafana 登录面将暴露到互联网，应使用独立强密码并在演示结束后立即删除该规则。
+
+### 5.3 浏览器访问
+
+访问 `https://<WORKER_MONITOR_PUBLIC_IPV4>:30300/`。用户名默认为 `admin`，密码是创建监控源 Secret 时输入的值。自签名证书会触发浏览器警告；继续前应核对脚本输出的 SHA256 指纹与证书 IP。不要使用 `kubectl get secret -o yaml`，也不要把密码或私钥粘贴到聊天、日志和截图中。
 
 ## 6. 故障与回滚边界
 
 - Pod Pending：先检查 `worker-monitor` 的 Label/Taint、PVC/PV 绑定和宿主机目录。
 - `ImagePullBackOff`：以 Pod Event 中的真实 digest 为准，重新运行镜像同步工作流；不要改成公网 Tag。
-- ExternalSecret NotReady：检查 `cloudsentinel-secret-store` 是否允许 `monitoring`，以及源 Secret 的三个键是否存在。
+- ExternalSecret NotReady：检查 `cloudsentinel-secret-store` 是否允许 `monitoring`、源 Role 是否允许读取 `cloudsentinel-grafana-public-tls`，以及监控凭证与 TLS 源 Secret 的键是否完整。
+- 公网 30300 超时：依次检查 `grafana-public` Endpoint、Grafana Pod 是否位于 `worker-monitor`、安全组精确端口规则和实例当前公网 IP；不要扩大为完整 NodePort 端口段。
+- 浏览器证书错误：自签名警告是预期行为；若证书 SAN 与当前公网 IP 不一致，则重新生成证书，不能忽略地址不匹配。
 - Prometheus 无 Target：检查应用 Pod 的 `prometheus.io/scrape`、`prometheus.io/port`、`prometheus.io/path` 注解和 NetworkPolicy。
 - 节点容量紧张：先暂停监控 Application 自动同步或将相应工作负载缩为 0，保留 PVC/PV；不要删除 Local PV 目录。
 - 删除 Application 不会自动清理 Retain PV。任何目录删除都必须先确认备份与精确绝对路径。

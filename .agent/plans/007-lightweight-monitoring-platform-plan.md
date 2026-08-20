@@ -1,5 +1,9 @@
 # CloudSentinel 轻量监控平台实施计划
 
+> 公网 Grafana 访问属于后续批准的学生环境例外，由
+> `008-grafana-public-nodeport-plan.md` 覆盖本计划中“不创建公网 Service、
+> NodePort 和证书”的原始限制；其余监控边界继续有效。
+
 ## 目标
 
 在不引入 `kube-prometheus-stack`、Prometheus Operator 或额外长期组件的前提下，为学生练习集群建立可由 Argo CD 管理的监控平台：

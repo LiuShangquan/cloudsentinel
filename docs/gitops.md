@@ -75,7 +75,7 @@ Registry 远端对象提供完整 `.dockerconfigjson`，其中认证服务器必
 
 该 JSON 是结构示例，真实密码和 `auth` 不得写入 Git。密钥后端和 `ClusterSecretStore` 由平台决定；应用仓库不绑定已经处于不维护状态的云 Provider 实现。
 
-学生集群的 Kubernetes Provider Secret Store 由 `bootstrap/secret-store` 提供。源 Namespace 只保存五个受控 Secret：`cloudsentinel-data-credentials`、`cloudsentinel-staging-app`、`cloudsentinel-production-app`、`cloudsentinel-registry`、`cloudsentinel-monitoring`。监控源 Secret 只包含独立 Grafana 管理凭证和从既有 Staging 源 Secret 安全复制的 Alertmanager Webhook Token。数据键名与启用顺序见[实验 StatefulSet 数据层](kubernetes/lab-stateful-data.md)，监控流程见[学生集群轻量监控平台](kubernetes/lab-monitoring-platform.md)。
+学生集群的 Kubernetes Provider Secret Store 由 `bootstrap/secret-store` 提供。源 Namespace 只保存六个受控 Secret：`cloudsentinel-data-credentials`、`cloudsentinel-staging-app`、`cloudsentinel-production-app`、`cloudsentinel-registry`、`cloudsentinel-monitoring`、`cloudsentinel-grafana-public-tls`。监控源 Secret 只包含独立 Grafana 管理凭证和从既有 Staging 源 Secret 安全复制的 Alertmanager Webhook Token；Grafana 公网 TLS 源 Secret 只包含自签名证书、私钥和公网 URL，仍不得进入 Git。数据键名与启用顺序见[实验 StatefulSet 数据层](kubernetes/lab-stateful-data.md)，监控与实验公网访问流程见[学生集群轻量监控平台](kubernetes/lab-monitoring-platform.md)。
 
 ## 5. 正常发布
 

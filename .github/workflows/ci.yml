@@ -57,6 +57,7 @@ jobs:
           bash -n deploy/kubernetes/install-argocd.sh
           bash -n deploy/kubernetes/prepare-monitoring-storage-alinux4.sh
           bash -n deploy/kubernetes/bootstrap-monitoring-source-secret.sh
+          bash -n deploy/kubernetes/bootstrap-grafana-public-tls.sh
           bash -n deploy/kubernetes/verify-monitoring-platform.sh
           test "$(grep -c '^kind: Pod$' deploy/kubernetes/tests/network-smoke.yaml)" -eq 3
           test "$(grep -c 'imagePullPolicy: Never' deploy/kubernetes/tests/network-smoke.yaml)" -eq 3
@@ -68,7 +69,8 @@ jobs:
             deploy/kubernetes/run-cluster-network-smoke.sh \
             deploy/kubernetes/install-external-secrets.sh \
             deploy/kubernetes/build-argocd-bundle.sh \
-            deploy/kubernetes/install-argocd.sh; then
+            deploy/kubernetes/install-argocd.sh \
+            deploy/kubernetes/bootstrap-grafana-public-tls.sh; then
             echo 'cluster smoke-test assets contain unresolved placeholders' >&2
             exit 1
           fi
@@ -140,10 +142,17 @@ jobs:
           test "$(grep -Ec '^[[:space:]]+node-role: monitoring$' "${monitoring_output}")" -eq 4
           test "$(grep -Ec '^[[:space:]]+kubernetes.io/hostname: worker-monitor$' "${monitoring_output}")" -eq 4
           test "$(grep -Ec 'image: crpi-1s64ln3ptbvgkqof-vpc\.cn-beijing\.personal\.cr\.aliyuncs\.com/cloudsentinel0306/cloudsentinel-(prometheus|alertmanager|grafana|metrics-server)@sha256:[0-9a-f]{64}$' "${monitoring_output}")" -eq 4
+          test "$(grep -c '^  type: NodePort$' "${monitoring_output}")" -eq 1
+          test "$(grep -c '^  externalTrafficPolicy: Local$' "${monitoring_output}")" -eq 1
+          test "$(grep -c '^    nodePort: 30300$' "${monitoring_output}")" -eq 1
+          test "$(grep -c '^  type: LoadBalancer$' "${monitoring_output}")" -eq 0
+          grep -Fq 'name: grafana-public' "${monitoring_output}"
+          grep -Fq 'name: grafana-public-tls' "${monitoring_output}"
           secret_store_output="$(mktemp)"
           kubectl kustomize deploy/gitops-repository/bootstrap/secret-store >"${secret_store_output}"
           test "$(grep -Ec '^[[:space:]]+- argocd$' "${secret_store_output}")" -eq 1
           test "$(grep -Ec '^[[:space:]]+- monitoring$' "${secret_store_output}")" -eq 1
+          test "$(grep -Ec '^[[:space:]]+- cloudsentinel-grafana-public-tls$' "${secret_store_output}")" -eq 1
           kubectl kustomize deploy/gitops-repository/platform/cloudsentinel-secrets/overlays/lab-data >/dev/null
           argocd_bootstrap_output="$(mktemp)"
           kubectl kustomize deploy/gitops-repository/bootstrap/argocd >"${argocd_bootstrap_output}"

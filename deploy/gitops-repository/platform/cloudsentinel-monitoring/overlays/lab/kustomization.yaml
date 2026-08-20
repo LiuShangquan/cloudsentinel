@@ -12,6 +12,7 @@ resources:
   - alertmanager.yaml
   - grafana-config.yaml
   - grafana.yaml
+  - grafana-public.yaml
   - metrics-server.yaml
   - networkpolicy.yaml
 labels:

@@ -46,9 +46,9 @@ spec:
   selector:
     app.kubernetes.io/name: grafana
   ports:
-    - name: http
+    - name: https
       port: 3000
-      targetPort: http
+      targetPort: https
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -91,11 +91,19 @@ spec:
           image: cloudsentinel-grafana
           imagePullPolicy: IfNotPresent
           ports:
-            - name: http
+            - name: https
               containerPort: 3000
           env:
             - {name: GF_SECURITY_ADMIN_USER, valueFrom: {secretKeyRef: {name: cloudsentinel-monitoring-runtime, key: GRAFANA_ADMIN_USER}}}
             - {name: GF_SECURITY_ADMIN_PASSWORD, valueFrom: {secretKeyRef: {name: cloudsentinel-monitoring-runtime, key: GRAFANA_ADMIN_PASSWORD}}}
+            - {name: GF_SERVER_PROTOCOL, value: "https"}
+            - {name: GF_SERVER_HTTP_PORT, value: "3000"}
+            - {name: GF_SERVER_ROOT_URL, valueFrom: {secretKeyRef: {name: grafana-public-tls, key: public-url}}}
+            - {name: GF_SERVER_CERT_FILE, value: "/etc/grafana/tls/tls.crt"}
+            - {name: GF_SERVER_CERT_KEY, value: "/etc/grafana/tls/tls.key"}
+            - {name: GF_SECURITY_COOKIE_SECURE, value: "true"}
+            - {name: GF_SECURITY_COOKIE_SAMESITE, value: "strict"}
+            - {name: GF_AUTH_ANONYMOUS_ENABLED, value: "false"}
             - {name: GF_USERS_ALLOW_SIGN_UP, value: "false"}
             - {name: GF_PLUGINS_PREINSTALL_DISABLED, value: "true"}
           resources:
@@ -110,11 +118,17 @@ spec:
             capabilities:
               drop: [ALL]
           readinessProbe:
-            httpGet: {path: /api/health, port: http}
+            httpGet:
+              path: /api/health
+              port: https
+              scheme: HTTPS
             periodSeconds: 10
             timeoutSeconds: 3
           livenessProbe:
-            httpGet: {path: /api/health, port: http}
+            httpGet:
+              path: /api/health
+              port: https
+              scheme: HTTPS
             periodSeconds: 20
             timeoutSeconds: 3
           volumeMounts:
@@ -122,6 +136,7 @@ spec:
             - {name: provisioning, mountPath: /etc/grafana/provisioning/datasources/datasource.yaml, subPath: datasource.yaml, readOnly: true}
             - {name: provisioning, mountPath: /etc/grafana/provisioning/dashboards/dashboards.yaml, subPath: dashboards.yaml, readOnly: true}
             - {name: dashboard, mountPath: /etc/grafana/dashboards/cloudsentinel-overview.json, subPath: cloudsentinel-overview.json, readOnly: true}
+            - {name: public-tls, mountPath: /etc/grafana/tls, readOnly: true}
       volumes:
         - name: data
           persistentVolumeClaim:
@@ -132,3 +147,7 @@ spec:
         - name: dashboard
           configMap:
             name: grafana-dashboard-cloudsentinel
+        - name: public-tls
+          secret:
+            secretName: grafana-public-tls
+            defaultMode: 0440

@@ -12,6 +12,7 @@ rules:
       - cloudsentinel-production-app
       - cloudsentinel-registry
       - cloudsentinel-monitoring
+      - cloudsentinel-grafana-public-tls
     verbs: ["get"]
   - apiGroups: ["authorization.k8s.io"]
     resources: ["selfsubjectaccessreviews", "selfsubjectrulesreviews"]

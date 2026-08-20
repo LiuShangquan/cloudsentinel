@@ -6,6 +6,7 @@ readonly APPLICATION="cloudsentinel-monitoring-lab"
 readonly ATTEMPTS="${ATTEMPTS:-36}"
 readonly INTERVAL_SECONDS="${INTERVAL_SECONDS:-10}"
 readonly KUBECTL_REQUEST_TIMEOUT="${KUBECTL_REQUEST_TIMEOUT:-20s}"
+readonly API_SERVER="${KUBERNETES_API_SERVER:-}"
 
 fail() {
   echo "MONITORING_PLATFORM_VERIFY=FAIL reason=$1" >&2
@@ -14,7 +15,11 @@ fail() {
 
 command -v kubectl >/dev/null 2>&1 || fail 'kubectl-not-found'
 kube() {
-  kubectl --request-timeout="${KUBECTL_REQUEST_TIMEOUT}" "$@"
+  local -a arguments=(--request-timeout="${KUBECTL_REQUEST_TIMEOUT}")
+  if [[ -n "${API_SERVER}" ]]; then
+    arguments+=(--server="${API_SERVER}")
+  fi
+  kubectl "${arguments[@]}" "$@"
 }
 
 echo '===== bounded readiness observation ====='
@@ -44,6 +49,20 @@ for attempt in $(seq 1 "${ATTEMPTS}"); do
 done
 [[ "${converged}" == true ]] || fail 'workloads-did-not-converge'
 
+echo '===== Grafana public access metadata ====='
+grafana_external_secret_ready="$(kube -n "${NAMESPACE}" get externalsecret grafana-public-tls \
+  -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}')"
+[[ "${grafana_external_secret_ready}" == "True" ]] || fail 'grafana-public-tls-not-ready'
+
+grafana_tls_secret_type="$(kube -n "${NAMESPACE}" get secret grafana-public-tls \
+  -o jsonpath='{.type}')"
+[[ "${grafana_tls_secret_type}" == 'kubernetes.io/tls' ]] || fail 'grafana-public-tls-wrong-type'
+
+grafana_public_service="$(kube -n "${NAMESPACE}" get service grafana-public \
+  -o jsonpath='{.spec.type}|{.spec.externalTrafficPolicy}|{.spec.ports[0].nodePort}|{.spec.ports[0].protocol}')"
+[[ "${grafana_public_service}" == 'NodePort|Local|30300|TCP' ]] || fail 'grafana-public-service-boundary-mismatch'
+echo "grafana_public_service=${grafana_public_service}"
+
 echo '===== storage ====='
 kube -n "${NAMESPACE}" get pvc \
   -o custom-columns='NAME:.metadata.name,STATUS:.status.phase,VOLUME:.spec.volumeName'
@@ -59,7 +78,7 @@ grep -Fq 'worker-monitor' <<<"${metrics_payload}" || fail 'metrics-api-missing-w
 echo '===== component endpoints ====='
 prometheus_ready="$(kube get --raw='/api/v1/namespaces/monitoring/services/http:prometheus:9090/proxy/-/ready')"
 alertmanager_ready="$(kube get --raw='/api/v1/namespaces/monitoring/services/http:alertmanager:9093/proxy/-/ready')"
-grafana_health="$(kube get --raw='/api/v1/namespaces/monitoring/services/http:grafana:3000/proxy/api/health')"
+grafana_health="$(kube get --raw='/api/v1/namespaces/monitoring/services/https:grafana:3000/proxy/api/health')"
 grep -Fq 'Prometheus Server is Ready' <<<"${prometheus_ready}" || fail 'prometheus-not-ready'
 grep -Fq 'OK' <<<"${alertmanager_ready}" || fail 'alertmanager-not-ready'
 grep -Fq '"database": "ok"' <<<"${grafana_health}" || \
