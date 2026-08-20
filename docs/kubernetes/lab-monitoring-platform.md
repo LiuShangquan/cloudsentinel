@@ -44,6 +44,8 @@ bash /root/prepare-monitoring-storage-alinux4.sh
 
 先在 ACR 个人版命名空间 `cloudsentinel0306` 中创建四个私有仓库：`cloudsentinel-prometheus`、`cloudsentinel-alertmanager`、`cloudsentinel-grafana`、`cloudsentinel-metrics-server`。当前实例已关闭自动创建仓库，缺少任意仓库都会导致 Push 失败。
 
+由于首次监控平台 PR 会同步 GitOps 仓库的 `.github/workflows/validate.yml`，发布 GitHub App 除 Contents/Pull Requests 读写外，必须拥有 Workflows 读写权限。修改 GitHub App 权限后，需要在安装页确认新权限；工作流只为短期 Token 请求这三项权限，不给予 Administration 或 Secrets 等无关权限。
+
 在源码仓库 GitHub Actions 中，从 `main` 手工运行 `mirror-monitoring-images`。工作流会：
 
 1. 把四个固定 `linux/amd64` 上游镜像同步到 ACR；

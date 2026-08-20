@@ -29,7 +29,7 @@ Argo CD 固定为 `v3.5.0`，官方测试矩阵覆盖 Kubernetes `v1.35`。当�
 
 - 北京 ACR 个人版实例 `crpi-1s64ln3ptbvgkqof`，命名空间 `cloudsentinel0306`，至少包含业务、数据和平台使用的私有 Repository：`cloudsentinel-api`、`cloudsentinel-worker`、`cloudsentinel-migrate`、`cloudsentinel-mysql`、`cloudsentinel-redis`、`cloudsentinel-external-secrets`、`cloudsentinel-prometheus`、`cloudsentinel-alertmanager`、`cloudsentinel-grafana`、`cloudsentinel-metrics-server`；
 - 当前学生集群使用 `worker-data-01` 上的单副本 MySQL/Redis StatefulSet；正式企业生产切换为 RDS/Tair 后再准备私网 Endpoint、多可用区和托管备份；
-- 只安装在 GitOps 仓库的 GitHub App，权限限定为 Contents 读写和 Pull Requests 读写；
+- 只安装在 GitOps 仓库的 GitHub App，权限限定为 Contents 读写、Pull Requests 读写和 Workflows 读写；Workflows 权限仅用于在监控平台 PR 中同步 GitOps 校验工作流，GitHub App 仍不允许绕过 PR 或直接合并 `main`；
 - GitHub Repository Secrets：`ACR_USERNAME`、`ACR_PASSWORD`、`GITOPS_APP_PRIVATE_KEY`；
 - GitHub 托管 `ubuntu-24.04` Runner；发布工作流不依赖阿里云 AccessKey、OIDC、Kubeconfig 或自托管 Runner。
 
