@@ -5,8 +5,10 @@ resources:
   - configmap.yaml
   - deployment-api.yaml
   - deployment-worker.yaml
+  - deployment-web.yaml
   - service-api.yaml
   - service-worker.yaml
+  - service-web.yaml
   - migration-job.yaml
   - pdb.yaml
   - networkpolicy.yaml

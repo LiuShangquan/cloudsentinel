@@ -26,11 +26,12 @@ Worker /metrics --> Prometheus -> Alertmanager -> API Machine Webhook -> Inciden
 | `cloudsentinel` | Go、Dockerfile、Migration、测试、发布工作流 | 不保存环境 Secret，不直接部署集群 |
 | `cloudsentinel-gitops` | Kustomize Base/Overlay、Argo CD 项目与应用 | 不构建镜像，不保存应用源码或明文 Secret |
 
-发布过程为单向供应链：源码合并后，GitHub 托管 Runner 使用 Repository Secrets 中的固定 Registry 凭证，将 API/Worker/Migration 镜像推送到北京 ACR 个人版公网端点；写入 GitOps 的镜像名称使用同一实例的 VPC 端点。工作流用 GitHub App 短期 Token 创建 Staging PR。Staging 通过后，操作者从 `main` 手工触发 Production 工作流并输入 `PROMOTE`，工作流复制完全相同的 digest 创建晋级 PR。Argo CD 是唯一向集群收敛期望状态的组件，Production 始终由操作者手工同步。
+发布过程为单向供应链：源码合并后，GitHub 托管 Runner 使用 Repository Secrets 中的固定 Registry 凭证，将 API、Worker、Migration 和 Web 四个镜像推送到北京 ACR 个人版公网端点；写入 GitOps 的镜像名称使用同一实例的 VPC 端点。工作流用 GitHub App 短期 Token 创建 Staging PR。Staging 通过后，操作者从 `main` 手工触发 Production 工作流并输入 `PROMOTE`，工作流复制完全相同的 digest 创建晋级 PR。Argo CD 是唯一向集群收敛期望状态的组件，Production 始终由操作者手工同步。
 
 ## Kubernetes 映射
 
 - API：3 个生产副本、ClusterIP、Ingress、PDB、CPU HPA。
+- Web：独立非 Root 静态站点镜像，通过同源反向代理访问 API；Ingress 根路径先进入 Web Service，浏览器中不固化集群内部地址。
 - Worker：3 个生产副本、PDB、固定并发；先以 Redis backlog 与探测延迟做容量规划，再设计基于自定义指标的弹性。
 - Migration：独立一次性 PreSync Job，失败会阻断应用同步。
 - 企业生产：RDS/Tair 是集群外托管服务，不创建 StatefulSet 或 PVC。

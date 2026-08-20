@@ -2,14 +2,14 @@
 
 import { readFileSync, writeFileSync } from "node:fs";
 
-export const components = ["api", "worker", "migrate"];
+export const components = ["api", "worker", "migrate", "web"];
 const digestPattern = /^sha256:[0-9a-f]{64}$/;
 
 export function readImages(path) {
   const lines = readFileSync(path, "utf8").split(/\r?\n/);
   const images = {};
   for (let index = 0; index < lines.length; index += 1) {
-    const match = lines[index].match(/^\s*- name: cloudsentinel-(api|worker|migrate)\s*$/);
+    const match = lines[index].match(/^\s*- name: cloudsentinel-(api|worker|migrate|web)\s*$/);
     if (!match) continue;
     const component = match[1];
     const block = lines.slice(index + 1, index + 4);
@@ -36,7 +36,7 @@ export function writeImages(path, images) {
   let active;
   const seen = new Set();
   const output = lines.map((line) => {
-    const match = line.match(/^\s*- name: cloudsentinel-(api|worker|migrate)\s*$/);
+    const match = line.match(/^\s*- name: cloudsentinel-(api|worker|migrate|web)\s*$/);
     if (match) {
       active = match[1];
       seen.add(active);
@@ -73,11 +73,11 @@ export function main(values) {
   if (!args.file) throw new Error("--file is required");
   let images;
   if (args["copy-from"]) {
-    const explicit = ["registry", "api-digest", "worker-digest", "migrate-digest"].some((key) => args[key]);
+    const explicit = ["registry", "api-digest", "worker-digest", "migrate-digest", "web-digest"].some((key) => args[key]);
     if (explicit) throw new Error("--copy-from cannot be combined with explicit image values");
     images = readImages(args["copy-from"]);
   } else {
-    for (const key of ["registry", "api-digest", "worker-digest", "migrate-digest"]) {
+    for (const key of ["registry", "api-digest", "worker-digest", "migrate-digest", "web-digest"]) {
       if (!args[key]) throw new Error(`--${key} is required`);
     }
     const registry = args.registry.replace(/\/+$/, "");

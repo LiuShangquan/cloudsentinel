@@ -123,6 +123,16 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  cloudsentinel-web:
+    build:
+      context: ./web
+      target: runtime
+    ports:
+      - "${WEB_PORT:-8088}:8080"
+    depends_on:
+      - cloudsentinel-api
+    restart: unless-stopped
+
   prometheus:
     image: prom/prometheus:v3.5.3
     command:

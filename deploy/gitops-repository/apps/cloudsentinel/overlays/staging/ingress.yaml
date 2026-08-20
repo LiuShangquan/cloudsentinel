@@ -1,7 +1,7 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: cloudsentinel-api
+  name: cloudsentinel
   annotations:
     cert-manager.io/cluster-issuer: cloudsentinel-public-issuer
     nginx.ingress.kubernetes.io/proxy-body-size: 1m
@@ -16,10 +16,10 @@ spec:
     - host: staging.cloudsentinel.REPLACE_DOMAIN
       http:
         paths:
-          - path: /api
+          - path: /
             pathType: Prefix
             backend:
               service:
-                name: cloudsentinel-api
+                name: cloudsentinel-web
                 port:
                   name: http

@@ -4,11 +4,11 @@ CloudSentinel 是一个基于 Go 的基础设施探测与故障事件平台。�
 
 ## 当前交付形态
 
-- 本地开发与回归：Docker Compose MVP（MySQL、Redis、API、Worker、Prometheus、Alertmanager、Grafana）。
+- 本地开发与回归：Docker Compose MVP（Web 控制台、MySQL、Redis、API、Worker、Prometheus、Alertmanager、Grafana）。
 - 企业生产：Kubernetes + Kustomize + Argo CD，MySQL/Redis 统一使用集群外阿里云 RDS/Tair。
 - 学生练习集群：保持 3 Control Plane + 4 Worker 拓扑，MySQL/Redis 以单副本 StatefulSet 固定运行在 `worker-data-01`，使用 Retain 本地 PV 和定时逻辑备份；这是低成本单点方案，不具备生产高可用性。
 - 学生监控：Prometheus、Alertmanager、Grafana 与 Metrics Server 使用低并发、短保留和单副本配置固定运行在 `worker-monitor`；不包含日志平台，也不冒充生产高可用。
-- CI/CD：GitHub Actions 构建三个不可变镜像，推送到北京 ACR 个人版并创建独立 GitOps 仓库 PR；工作流不直接操作 Kubernetes。
+- CI/CD：GitHub Actions 构建 API、Worker、Migration、Web 四个不可变镜像，推送到北京 ACR 个人版并创建独立 GitOps 仓库 PR；工作流不直接操作 Kubernetes。
 - 数据库变更：版本化 SQL Migration；生产由 Argo CD PreSync Job 在应用滚动更新前执行。
 - 密钥：Git 只保存 ExternalSecret 引用，实际值由平台密钥控制面提供。
 
@@ -17,7 +17,7 @@ CloudSentinel 是一个基于 Go 的基础设施探测与故障事件平台。�
                          |
                          v
              ACR 固定凭证 -> ACR 个人版公网端点
-                    （API/Worker/Migration digest）
+                  （API/Worker/Migration/Web digest）
                          |
                          v
                   Staging GitOps PR
@@ -32,7 +32,7 @@ CloudSentinel 是一个基于 Go 的基础设施探测与故障事件平台。�
 业务运行链路保持不变：
 
 ```text
-客户端 -> API -> MySQL
+浏览器 -> Web 控制台 -> API -> MySQL
 MySQL -> 调度器 -> Redis Stream -> Worker Pool -> HTTP/TCP 目标
 API /metrics + Worker /metrics -> Prometheus -> Alertmanager -> API Webhook -> Incident
 ```
@@ -40,6 +40,7 @@ API /metrics + Worker /metrics -> Prometheus -> Alertmanager -> API Webhook -> I
 ## 仓库导航
 
 - `cmd/api`、`cmd/worker`：两个生产进程。
+- `web`：React + TypeScript 业务管理控制台。
 - `internal/auth|asset|probe|incident`：领域模块。
 - `migrations`：唯一 Schema 事实来源。
 - `deploy/gitops-repository`：需要拆分成独立私有 GitOps 仓库的种子。
@@ -48,6 +49,7 @@ API /metrics + Worker /metrics -> Prometheus -> Alertmanager -> API Webhook -> I
 - `docs/operations.md`：运行、回滚、Migration 和故障处置。
 - `docs/kubernetes`：自建 Kubernetes 集群与网络手册。
 - `docs/kubernetes/lab-monitoring-platform.md`：学生集群轻量监控平台的容量边界、部署和验收。
+- `docs/frontend.md`：Web 控制台的页面、权限边界、开发和发布说明。
 
 ## 本地启动
 
@@ -61,7 +63,7 @@ $login = Invoke-RestMethod -Method Post -ContentType 'application/json' `
   http://127.0.0.1:8080/api/v1/auth/login
 ```
 
-API、Prometheus、Alertmanager、Grafana 分别位于 `8080`、`9090`、`9093`、`3000` 端口。完整演示参见 [docs/demo.md](docs/demo.md)。停止但保留数据使用：
+Web 控制台、API、Prometheus、Alertmanager、Grafana 分别位于 `8088`、`8080`、`9090`、`9093`、`3000` 端口。打开 `http://127.0.0.1:8088` 后，使用 `.env` 中的 Bootstrap 用户登录。完整演示参见 [docs/demo.md](docs/demo.md)。停止但保留数据使用：
 
 ```powershell
 docker compose --profile demo down
@@ -78,6 +80,10 @@ go vet ./...
 go test ./...
 go build ./cmd/api
 go build ./cmd/worker
+npm --prefix web ci
+npm --prefix web run typecheck
+npm --prefix web test
+npm --prefix web run build
 docker compose config
 ```
 
@@ -89,4 +95,4 @@ GitOps 模板故意包含 `REPLACE_*`，复制为正式配置仓库后必须替�
 
 ## 生产边界
 
-企业生产 Overlay 不包含 MySQL/Redis StatefulSet。学生实验 Overlay 仅用于本次低成本自建集群，单个数据节点或系统盘故障会同时中断数据库、消息流和本地备份。正式上线时必须迁回 RDS/Tair 或经验证的高可用数据平台。当前仍不实现自动修复、多租户、完整业务 RBAC、OAuth/OIDC、复杂前端或 HTTP/TCP 以外的 Probe。
+企业生产 Overlay 不包含 MySQL/Redis StatefulSet。学生实验 Overlay 仅用于本次低成本自建集群，单个数据节点或系统盘故障会同时中断数据库、消息流和本地备份。正式上线时必须迁回 RDS/Tair 或经验证的高可用数据平台。当前 Web 控制台只覆盖现有业务 API，不扩展为多租户、完整业务 RBAC、OAuth/OIDC、自动修复或 HTTP/TCP 以外的 Probe。
