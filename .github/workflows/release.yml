@@ -110,6 +110,49 @@ jobs:
           sbom: false
           cache-from: type=gha,scope=cloudsentinel-web
           cache-to: type=gha,mode=max,scope=cloudsentinel-web
+      - name: Resolve and verify ACR image digests
+        id: acr-digests
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          resolve_digest() {
+            local component="$1"
+            local output_name="$2"
+            local buildx_digest="$3"
+            local repository="${ACR_PUBLIC_REGISTRY}/${ACR_NAMESPACE}/cloudsentinel-${component}"
+            local tagged_image="${repository}:${GITHUB_SHA}"
+            local repo_digest
+            local digest
+            local platform
+
+            docker pull --platform linux/amd64 "${tagged_image}"
+            platform="$(docker image inspect \
+              --format '{{.Os}}/{{.Architecture}}' \
+              "${tagged_image}")"
+            test "${platform}" = "linux/amd64"
+
+            repo_digest="$(docker image inspect \
+              --format '{{index .RepoDigests 0}}' \
+              "${tagged_image}")"
+            digest="${repo_digest##*@}"
+            [[ "${digest}" =~ ^sha256:[0-9a-f]{64}$ ]]
+
+            # Prove that the immutable reference accepted by the registry can
+            # be resolved before it is written to the GitOps repository.
+            docker pull --platform linux/amd64 "${repository}@${digest}"
+
+            if [[ "${digest}" != "${buildx_digest}" ]]; then
+              echo "::warning title=ACR digest normalization::${component}: Buildx reported ${buildx_digest}, ACR resolves ${digest}"
+            fi
+
+            echo "${output_name}=${digest}" >>"${GITHUB_OUTPUT}"
+          }
+
+          resolve_digest api api_digest '${{ steps.api.outputs.digest }}'
+          resolve_digest worker worker_digest '${{ steps.worker.outputs.digest }}'
+          resolve_digest migrate migrate_digest '${{ steps.migrate.outputs.digest }}'
+          resolve_digest web web_digest '${{ steps.web.outputs.digest }}'
       - name: Mint short-lived GitOps repository token
         id: gitops-token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
@@ -130,10 +173,10 @@ jobs:
       - name: Open staging release PR
         env:
           GH_TOKEN: ${{ steps.gitops-token.outputs.token }}
-          API_DIGEST: ${{ steps.api.outputs.digest }}
-          WORKER_DIGEST: ${{ steps.worker.outputs.digest }}
-          MIGRATE_DIGEST: ${{ steps.migrate.outputs.digest }}
-          WEB_DIGEST: ${{ steps.web.outputs.digest }}
+          API_DIGEST: ${{ steps.acr-digests.outputs.api_digest }}
+          WORKER_DIGEST: ${{ steps.acr-digests.outputs.worker_digest }}
+          MIGRATE_DIGEST: ${{ steps.acr-digests.outputs.migrate_digest }}
+          WEB_DIGEST: ${{ steps.acr-digests.outputs.web_digest }}
         shell: bash
         run: |
           set -euo pipefail
