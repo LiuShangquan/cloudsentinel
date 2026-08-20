@@ -1,0 +1,55 @@
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: grafana-public-tls
+  namespace: monitoring
+  annotations:
+    argocd.argoproj.io/sync-wave: "-20"
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: cloudsentinel-secret-store
+  target:
+    name: grafana-public-tls
+    creationPolicy: Owner
+    deletionPolicy: Retain
+    template:
+      type: kubernetes.io/tls
+      engineVersion: v2
+      data:
+        tls.crt: "{{ .tlsCertificate }}"
+        tls.key: "{{ .tlsPrivateKey }}"
+        public-url: "{{ .publicURL }}"
+  data:
+    - secretKey: tlsCertificate
+      remoteRef:
+        key: cloudsentinel-grafana-public-tls
+        property: tls.crt
+    - secretKey: tlsPrivateKey
+      remoteRef:
+        key: cloudsentinel-grafana-public-tls
+        property: tls.key
+    - secretKey: publicURL
+      remoteRef:
+        key: cloudsentinel-grafana-public-tls
+        property: public-url
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana-public
+  namespace: monitoring
+  annotations:
+    argocd.argoproj.io/sync-wave: "-10"
+spec:
+  type: NodePort
+  externalTrafficPolicy: Local
+  selector:
+    app.kubernetes.io/name: grafana
+  ports:
+    - name: https
+      protocol: TCP
+      port: 3000
+      targetPort: https
+      nodePort: 30300
